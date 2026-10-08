@@ -5,6 +5,7 @@ import {
   Home,
   Languages,
   LogOut,
+  Settings,
   Shield,
   Trophy,
   Users,
@@ -12,11 +13,12 @@ import {
 import { useApp } from "../context/AppContext";
 import { db } from "../lib/supabase";
 const items = [
-  { to: "/", en: "Home", ar: "الرئيسية", icon: Home },
-  { to: "/booking", en: "Friday", ar: "الجمعة", icon: CalendarCheck },
-  { to: "/matches", en: "Matches", ar: "المباريات", icon: Trophy },
-  { to: "/players", en: "Players", ar: "اللاعبون", icon: Users },
-  { to: "/profile", en: "Profile", ar: "حسابي", icon: Shield },
+  { to: "/", en: "Home", ar: "الرئيسية", icon: Home, admin: false },
+  { to: "/booking", en: "Friday", ar: "الجمعة", icon: CalendarCheck, admin: false },
+  { to: "/matches", en: "Matches", ar: "المباريات", icon: Trophy, admin: false },
+  { to: "/players", en: "Players", ar: "اللاعبون", icon: Users, admin: false },
+  { to: "/admin", en: "Admin", ar: "الإدارة", icon: Settings, admin: true },
+  { to: "/profile", en: "Profile", ar: "حسابي", icon: Shield, admin: false },
 ];
 export function Layout({ children }: { children: ReactNode }) {
   const {
@@ -98,7 +100,9 @@ export function Layout({ children }: { children: ReactNode }) {
         className="bottom-nav"
         aria-label={language === "ar" ? "التنقل الرئيسي" : "Primary navigation"}
       >
-        {items.map(({ to, en, ar, icon: Icon }) => (
+        {items
+          .filter((item) => !item.admin || isAdmin)
+          .map(({ to, en, ar, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === "/"}>
             {({ isActive }) => (
               <>

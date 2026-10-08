@@ -10,6 +10,8 @@ import { PlayersPage, ProfilePage } from "./pages/PeoplePages";
 import { TeamsPage } from "./pages/TeamsPage";
 import { MatchesPage, MatchPage } from "./pages/MatchesPages";
 import { AdminPage } from "./pages/AdminPage";
+import { JoinPage } from "./pages/JoinPage";
+import { MatchDemoPage } from "./pages/MatchDemoPage";
 
 function Router() {
   const { user, loading, membership, isAdmin } = useApp();
@@ -49,9 +51,14 @@ function Router() {
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/matches" element={<MatchesPage />} />
         <Route path="/matches/:id" element={<MatchPage />} />
+        <Route path="/join" element={<JoinPage />} />
         <Route
           path="/admin"
           element={isAdmin ? <AdminPage /> : <Navigate to="/" />}
+        />
+        <Route
+          path="/admin/demo"
+          element={isAdmin ? <MatchDemoPage /> : <Navigate to="/" />}
         />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

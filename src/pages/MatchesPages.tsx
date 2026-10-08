@@ -5,11 +5,13 @@ import { Circle, Flag, Play, Pause, Square, Undo2 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import {
   addEvent,
+  getBookings,
   getEvents,
   getFootball,
   getMatch,
   getMatches,
   getTeamPlayers,
+  getTeams,
   ratePlayer,
   reverseEvent,
   setMatchState,
@@ -18,6 +20,8 @@ import { db } from "../lib/supabase";
 import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
 import type { Match, MatchEvent } from "../lib/types";
+import { FridayGateCard } from "../components/FridayGateCard";
+import { matchControlRequirements } from "../lib/fridayGate";
 function score(events: MatchEvent[], teamId: string) {
   return events.filter(
     (e) => e.team_id === teamId && e.event_type === "goal" && !e.reversed_at,
@@ -92,6 +96,16 @@ export function MatchesPage() {
     queryFn: () => getMatches(active!.id),
     enabled: !!active,
   });
+  const teams = useQuery({
+    queryKey: ["teams", active?.id],
+    queryFn: () => getTeams(active!.id),
+    enabled: !!active,
+  });
+  const bookings = useQuery({
+    queryKey: ["bookings", active?.id],
+    queryFn: () => getBookings(active!.id),
+    enabled: !!active,
+  });
   return (
     <div className="page-stack">
       <div>
@@ -146,12 +160,24 @@ export function MatchesPage() {
           {ar ? "تعذّر تحميل المباريات." : "Could not load matches."}
         </div>
       )}
-      {matches.data?.length === 0 && (
-        <Card className="empty">
-          {ar
-            ? "لا توجد مباريات مجدولة لهذه الجلسة."
-            : "No matches scheduled for this session."}
-        </Card>
+      {sessions.isSuccess &&
+        (!active ||
+          (matches.isSuccess && teams.isSuccess && bookings.isSuccess)) &&
+        (matches.data?.length || 0) === 0 && (
+          <FridayGateCard
+            input={{
+              hasSession: !!active,
+              sessionStatus: active?.status || null,
+              confirmedCount:
+                bookings.data?.filter((row) => row.status === "confirmed")
+                  .length || 0,
+              teamCount: teams.data?.length || 0,
+              publishedTeamCount:
+                teams.data?.filter((team) => team.status === "published")
+                  .length || 0,
+              matchCount: 0,
+            }}
+        />
       )}
       {matches.data?.map((m) => (
         <MatchCard key={m.id} match={m} />
@@ -161,14 +187,13 @@ export function MatchesPage() {
 }
 export function MatchPage() {
   const { id } = useParams();
-  const { user, isAdmin, language } = useApp();
+  const { user, isAdmin, language, membership } = useApp();
   const ar = language === "ar";
   const client = useQueryClient();
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
   const [teamId, setTeamId] = useState("");
   const [playerId, setPlayerId] = useState("");
-  const [type, setType] = useState<MatchEvent["event_type"]>("goal");
   const [ratee, setRatee] = useState("");
   const [scores, setScores] = useState({
     performance: 7,
@@ -396,47 +421,65 @@ export function MatchPage() {
                 ))}
               </select>
             </label>
-            <label className="field">
-              {ar ? "الحدث" : "Event"}
-              <select
-                className="select"
-                value={type}
-                onChange={(e) =>
-                  setType(e.target.value as MatchEvent["event_type"])
-                }
-              >
-                <option value="goal">{ar ? "هدف" : "Goal"}</option>
-                <option value="yellow">
-                  {ar ? "بطاقة صفراء" : "Yellow card"}
-                </option>
-                <option value="red">{ar ? "بطاقة حمراء" : "Red card"}</option>
-                <option value="green">
-                  {ar ? "بطاقة خضراء" : "Green card"}
-                </option>
-              </select>
-            </label>
-            <ActionButton
-              disabled={
-                !teamId ||
-                !playerId ||
-                match.status !== "live" ||
-                action.isPending
-              }
-              onClick={() =>
-                action.mutate(() => addEvent(match.id, teamId, playerId, type))
-              }
-            >
-              {ar ? "تسجيل الحدث" : "Record event"}
-            </ActionButton>
+            <div className="actions">
+              {(
+                [
+                  ["goal", ar ? "هدف" : "Goal"],
+                  ["yellow", ar ? "صفراء" : "Yellow"],
+                  ["red", ar ? "حمراء" : "Red"],
+                  ["green", ar ? "خضراء" : "Green"],
+                ] as const
+              ).map(([eventType, label]) => (
+                <ActionButton
+                  key={eventType}
+                  variant={eventType === "goal" ? "primary" : "secondary"}
+                  disabled={
+                    !teamId ||
+                    !playerId ||
+                    match.status !== "live" ||
+                    action.isPending
+                  }
+                  onClick={() =>
+                    action.mutate(() =>
+                      addEvent(match.id, teamId, playerId, eventType),
+                    )
+                  }
+                >
+                  <Flag size={15} /> {label}
+                </ActionButton>
+              ))}
+            </div>
+            <p className="tiny muted">
+              {membership?.group.green_hat_trick_enabled
+                ? ar
+                  ? "الهاتريك مفعّل. الهدف الثالث يسجل بطاقة خضراء من الخادم وتبقى في تسلسل الأحداث."
+                  : "Hat-trick reward is on. The third goal records a green card on the server and keeps it in the timeline."
+                : ar
+                  ? "مكافأة الهاتريك متوقفة في إعدادات المجموعة."
+                  : "Hat-trick reward is off in group settings."}
+            </p>
           </div>
         </Card>
       )}
       {isAdmin && !canRef && (
         <div className="notice">
           {ar
-            ? "لا يمكن إدارة المباراة إلا للحكام المعينين."
-            : "Only assigned match officials can operate this match."}
+            ? "لوحة الحكم مخفية حتى تُعيَّن حكمًا لهذه المباراة من إدارة المباريات، وأن لا تكون لاعبًا في أحد الفريقين."
+            : "The referee console stays hidden until Admin assigns you to this match and you are not playing on either team."}{" "}
+          <Link to="/admin">{ar ? "فتح الإدارة" : "Open admin"}</Link>
         </div>
+      )}
+      {!canRef && (
+        <Card>
+          <h2 className="section-title">
+            {ar ? "شروط التحكم" : "Control requirements"}
+          </h2>
+          <ol className="gate-list">
+            {matchControlRequirements[ar ? "ar" : "en"].map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ol>
+        </Card>
       )}
       <Card>
         <h2 className="section-title">

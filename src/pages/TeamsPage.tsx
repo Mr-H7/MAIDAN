@@ -18,6 +18,7 @@ import {
 } from "../lib/balance";
 import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
+import { FridayGateCard } from "../components/FridayGateCard";
 import type { Profile } from "../lib/types";
 export function TeamsPage() {
   const { groupId, isAdmin, language } = useApp();
@@ -158,10 +159,17 @@ export function TeamsPage() {
           ))}
         </select>
       )}
-      {!active && (
-        <Card className="empty">
-          {ar ? "لا توجد جلسة جمعة مجدولة." : "No Friday session scheduled."}
-        </Card>
+      {sessions.isSuccess && !active && (
+        <FridayGateCard
+          input={{
+            hasSession: false,
+            sessionStatus: null,
+            confirmedCount: 0,
+            teamCount: 0,
+            publishedTeamCount: 0,
+            matchCount: 0,
+          }}
+        />
       )}
       {active && (
         <>
@@ -223,12 +231,21 @@ export function TeamsPage() {
               {error}
             </div>
           )}
-          {assignments.length === 0 && (
-            <Card className="empty">
-              {ar
-                ? "لم تُكوّن الفرق بعد. يجب أن يغلق المشرف قائمة من ٢٠ لاعبًا مؤكدًا أولًا."
-                : "Teams have not been generated yet. The admin must lock 20 confirmed players first."}
-            </Card>
+          {assignments.length === 0 && bookings.isSuccess && (
+            <FridayGateCard
+              input={{
+                hasSession: true,
+                sessionStatus: active.status,
+                confirmedCount:
+                  bookings.data?.filter((row) => row.status === "confirmed")
+                    .length || 0,
+                teamCount: teams.data?.length || 0,
+                publishedTeamCount:
+                  teams.data?.filter((team) => team.status === "published")
+                    .length || 0,
+                matchCount: 0,
+              }}
+            />
           )}
           <div className="team-grid">
             {assignments.map((team, index) => {

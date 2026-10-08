@@ -4,7 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { db } from "../lib/supabase";
-import { createGroup } from "../lib/api";
+import { createGroup, joinGroupWithInvite } from "../lib/api";
+import {
+  clearPendingInvite,
+  normalizeInviteCode,
+  rememberInviteFromLocation,
+} from "../lib/invites";
 import { useApp } from "../context/AppContext";
 import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
@@ -35,12 +40,15 @@ const schema = (ar: boolean) =>
   });
 type Values = z.infer<ReturnType<typeof schema>>;
 export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
-  const { user, language, toggleLanguage } = useApp();
+  const { user, language, toggleLanguage, selectGroup } = useApp();
   const ar = language === "ar";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [groupName, setGroupName] = useState("");
+  const [inviteCode, setInviteCode] = useState(() =>
+    rememberInviteFromLocation(),
+  );
   const [busy, setBusy] = useState(false);
   const client = useQueryClient();
   const {
@@ -80,6 +88,21 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
       setError((e as Error).message);
     }
   });
+  const joinGroup = async () => {
+    if (!user) return;
+    setBusy(true);
+    setError("");
+    try {
+      const groupId = await joinGroupWithInvite(normalizeInviteCode(inviteCode));
+      clearPendingInvite();
+      selectGroup(groupId);
+      await client.invalidateQueries({ queryKey: ["memberships", user.id] });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const makeGroup = async () => {
     if (!user || groupName.trim().length < 2) return;
     setBusy(true);
@@ -130,9 +153,16 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
             </h1>
             <p>
               {ar
-                ? "أنشئ مجتمعك الكروي الأول. ستكون مشرف المجموعة."
-                : "Create your first football community. You will be its group admin."}
+                ? "أنشئ مجتمعك الكروي الأول، أو أدخل برمز دعوة كلاعب."
+                : "Create your first football community, or enter with an invite code as a player."}
             </p>
+            {inviteCode && (
+              <div className="notice">
+                {ar
+                  ? "وُجد رمز دعوة على هذا الجهاز. الانضمام يضيفك كلاعب ولا يمنحك صلاحية مشرف."
+                  : "An invite code is saved on this device. Joining adds you as a player and does not grant admin permission."}
+              </div>
+            )}
             <div className="form-stack">
               <Field
                 label={ar ? "اسم المجموعة" : "Group name"}
@@ -144,6 +174,19 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
                 onClick={makeGroup}
               >
                 {ar ? "إنشاء المجموعة" : "Create group"}
+              </ActionButton>
+              <Field
+                label={ar ? "رمز الدعوة" : "Invite code"}
+                dir="ltr"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+              />
+              <ActionButton
+                variant="secondary"
+                disabled={busy || normalizeInviteCode(inviteCode).length < 8}
+                onClick={joinGroup}
+              >
+                {ar ? "الانضمام بالرمز" : "Join with code"}
               </ActionButton>
               <div className="notice">
                 {ar
@@ -182,6 +225,13 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
                 ? "مجتمعك الكروي ويوم المباراة في مكان واحد."
                 : "Football, community, and match day in one place."}
             </p>
+            {inviteCode && (
+              <div className="notice">
+                {ar
+                  ? "بعد تسجيل الدخول سيبقى رمز الدعوة جاهزًا للانضمام كلاعب."
+                  : "After you sign in, the invite code stays ready so you can join as a player."}
+              </div>
+            )}
             <form className="form-stack" onSubmit={submit} noValidate>
               {mode === "signup" && (
                 <Field

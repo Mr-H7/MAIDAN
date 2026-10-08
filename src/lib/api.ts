@@ -336,6 +336,54 @@ export async function reverseEvent(eventId: string): Promise<void> {
   });
   if (error) throw error;
 }
+export type GroupInvite = {
+  code: string;
+  enabled: boolean;
+  created_at: string;
+};
+
+export async function getGroupInvite(
+  groupId: string,
+): Promise<GroupInvite | null> {
+  const { data, error } = await db().rpc("get_group_invite", {
+    p_group_id: groupId,
+  });
+  if (error) throw error;
+  return (data as GroupInvite | null) || null;
+}
+
+export async function rotateGroupInvite(groupId: string): Promise<GroupInvite> {
+  const { data, error } = await db().rpc("rotate_group_invite", {
+    p_group_id: groupId,
+  });
+  return unwrap(data as GroupInvite, error);
+}
+
+export async function setGroupInviteEnabled(
+  groupId: string,
+  enabled: boolean,
+): Promise<void> {
+  const { error } = await db().rpc("set_group_invite_enabled", {
+    p_group_id: groupId,
+    p_enabled: enabled,
+  });
+  if (error) throw error;
+}
+
+export async function joinGroupWithInvite(code: string): Promise<string> {
+  const { data, error } = await db().rpc("join_group_with_invite", {
+    p_code: code,
+  });
+  return unwrap(data as string, error);
+}
+
+export async function reopenRoster(sessionId: string): Promise<void> {
+  const { error } = await db().rpc("reopen_roster", {
+    p_session_id: sessionId,
+  });
+  if (error) throw error;
+}
+
 export async function ratePlayer(
   matchId: string,
   rateeId: string,

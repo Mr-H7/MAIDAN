@@ -12,7 +12,9 @@ import {
   getMaqraa,
   getMatches,
   getPlayers,
+  getTeams,
   lockRoster,
+  reopenRoster,
   rotateQr,
   scheduleMatches,
 } from "../lib/api";
@@ -24,7 +26,10 @@ import {
   MaqraaCorrection,
 } from "../components/AdminExtras";
 import { GroupSettings } from "../components/GroupSettings";
+import { GroupInviteCard } from "../components/GroupInviteCard";
+import { FridayGateCard } from "../components/FridayGateCard";
 import { DisciplineAdmin } from "../components/DisciplineAdmin";
+import { matchControlRequirements } from "../lib/fridayGate";
 import { FixtureOrder } from "../components/FixtureOrder";
 import { Field } from "../components/ui/Field";
 import type { Booking, Maqraa } from "../lib/types";
@@ -134,6 +139,8 @@ export function AdminPage() {
   const [selectedSession, setSelectedSession] = useState("");
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmLock, setConfirmLock] = useState(false);
+  const [confirmFixtures, setConfirmFixtures] = useState(false);
   const sessions = useQuery({
     queryKey: ["football", groupId],
     queryFn: () => getFootball(groupId!),
@@ -177,6 +184,11 @@ export function AdminPage() {
     queryFn: () => getMatches(active!.id),
     enabled: !!active,
   });
+  const teams = useQuery({
+    queryKey: ["teams", active?.id],
+    queryFn: () => getTeams(active!.id),
+    enabled: !!active,
+  });
   const create = useMutation({
     mutationFn: () =>
       createWeekly(
@@ -209,14 +221,30 @@ export function AdminPage() {
   const lock = useMutation({
     mutationFn: () => lockRoster(active!.id),
     onSuccess: () => {
+      setConfirmLock(false);
       client.invalidateQueries({ queryKey: ["football", groupId] });
       setNotice(t("Roster locked.", "أُغلقت القائمة."));
+    },
+    onError: (e) => setNotice(e.message),
+  });
+  const reopen = useMutation({
+    mutationFn: () => reopenRoster(active!.id),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["football", groupId] });
+      client.invalidateQueries({ queryKey: ["teams", active?.id] });
+      setNotice(
+        t(
+          "Roster reopened. Draft teams for this session were cleared.",
+          "أُعيد فتح القائمة. مُسحت مسودات فرق هذه الجلسة.",
+        ),
+      );
     },
     onError: (e) => setNotice(e.message),
   });
   const fixtures = useMutation({
     mutationFn: () => scheduleMatches(active!.id),
     onSuccess: () => {
+      setConfirmFixtures(false);
       client.invalidateQueries({ queryKey: ["matches", active?.id] });
       setNotice(t("Matches scheduled.", "جُدولت المباريات."));
     },
@@ -266,6 +294,17 @@ export function AdminPage() {
     });
     setNotice(error?.message || t("Official assigned.", "عُيّن الحكم."));
   };
+  const confirmedCount =
+    bookings.data?.filter((x) => x.status === "confirmed").length || 0;
+  const fridayInput = {
+    hasSession: !!active,
+    sessionStatus: active?.status || null,
+    confirmedCount,
+    teamCount: teams.data?.length || 0,
+    publishedTeamCount:
+      teams.data?.filter((team) => team.status === "published").length || 0,
+    matchCount: matches.data?.length || 0,
+  };
   const rosterText = (bookings.data || [])
     .filter((x) => x.status === "confirmed")
     .map((x, i) => `${i + 1}. ${x.profile?.full_name || x.user_id}`)
@@ -300,6 +339,7 @@ export function AdminPage() {
           <div className="stat-label">{t("Matches", "المباريات")}</div>
         </div>
       </div>
+      {groupId && <GroupInviteCard groupId={groupId} />}
       {notice && (
         <div
           className={`notice ${create.isError || update.isError || invite.isError ? "error" : "success"}`}
@@ -460,9 +500,17 @@ export function AdminPage() {
             <div className="actions" style={{ margin: "14px 0" }}>
               <ActionButton
                 disabled={active.status !== "open" || lock.isPending}
-                onClick={() => lock.mutate()}
+                onClick={() => {
+                  if (!confirmLock) {
+                    setConfirmLock(true);
+                    return;
+                  }
+                  lock.mutate();
+                }}
               >
-                {t("Lock roster", "إغلاق القائمة")}
+                {confirmLock
+                  ? t("Confirm roster lock", "تأكيد إغلاق القائمة")
+                  : t("Lock roster", "إغلاق القائمة")}
               </ActionButton>
               <ActionButton
                 variant="secondary"
@@ -545,15 +593,53 @@ export function AdminPage() {
             {t("View schedule", "عرض الجدول")}
           </Link>
         </div>
-        <ActionButton
-          disabled={!active || matches.data?.length !== 0 || fixtures.isPending}
-          onClick={() => fixtures.mutate()}
-        >
-          {t(
-            "Generate fixtures from published teams",
-            "جدولة مباريات الفرق المنشورة",
-          )}
-        </ActionButton>
+        <div className="actions" style={{ marginBottom: 12 }}>
+          <ActionButton
+            disabled={!active || matches.data?.length !== 0 || fixtures.isPending}
+            onClick={() => {
+              if (!confirmFixtures) {
+                setConfirmFixtures(true);
+                return;
+              }
+              fixtures.mutate();
+            }}
+          >
+            {confirmFixtures
+              ? t("Confirm fixture generation", "تأكيد جدولة المباريات")
+              : t(
+                  "Generate fixtures from published teams",
+                  "جدولة مباريات الفرق المنشورة",
+                )}
+          </ActionButton>
+          <Link to="/admin/demo">
+            <ActionButton variant="secondary">
+              {t("Open match demonstration", "فتح تجربة المباراة")}
+            </ActionButton>
+          </Link>
+        </div>
+        <Card>
+          <h3 className="section-title">
+            {t(
+              "Match controls appear only after these conditions",
+              "تظهر تحكمات المباراة بعد هذه الشروط فقط",
+            )}
+          </h3>
+          <ol className="gate-list">
+            {matchControlRequirements[ar ? "ar" : "en"].map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ol>
+        </Card>
+        {sessions.isSuccess &&
+          (!active ||
+            (matches.isSuccess && teams.isSuccess && bookings.isSuccess)) &&
+          (matches.data?.length || 0) === 0 && (
+          <FridayGateCard
+            input={fridayInput}
+            reopenPending={reopen.isPending}
+            onReopen={() => reopen.mutate()}
+          />
+        )}
         {active && (
           <FixtureOrder sessionId={active.id} matches={matches.data || []} />
         )}
