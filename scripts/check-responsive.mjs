@@ -58,6 +58,12 @@ try {
       throw new Error(`${width}px Arabic auth: ${JSON.stringify(state)}`);
     if (width === 390) {
       await page.screenshot({ path: "tmp/auth-mobile-ar.png" });
+      await page.getByRole("button", { name: "تسجيل الدخول" }).click();
+      await page.getByText("أدخل بريدًا إلكترونيًا صحيحًا.").waitFor();
+      await page.getByText("كلمة المرور ٨ أحرف على الأقل.").waitFor();
+      await page.getByRole("button", { name: "جديد هنا؟ أنشئ حسابًا" }).click();
+      await page.getByLabel("الاسم الكامل").waitFor();
+      await page.getByRole("button", { name: "إنشاء حساب" }).waitFor();
       await page.getByRole("button", { name: "Switch to English" }).click();
       const en = await page.evaluate(() => ({
         lang: document.documentElement.lang,
@@ -66,7 +72,18 @@ try {
       }));
       if (en.lang !== "en" || en.dir !== "ltr" || en.overflow)
         throw new Error(`390px English auth: ${JSON.stringify(en)}`);
+      await page.getByRole("button", { name: "Create account" }).click();
+      await page.getByText("Enter a valid email address.").waitFor();
+      await page
+        .getByText("Password must have at least 8 characters.")
+        .waitFor();
       await page.screenshot({ path: "tmp/auth-mobile-en.png" });
+      await page.goto(`${base}/profile`);
+      await page.locator(".auth-card").waitFor();
+      if (new URL(page.url()).pathname !== "/profile")
+        throw new Error(
+          "Protected SPA route did not resolve through the HTML fallback",
+        );
     }
     console.log(
       `PASS ${width}px auth viewport, approved assets, RTL, no horizontal overflow`,

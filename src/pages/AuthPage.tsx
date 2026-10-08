@@ -9,12 +9,31 @@ import { useApp } from "../context/AppContext";
 import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
 import { Field } from "../components/ui/Field";
-const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(2).max(100).optional(),
-});
-type Values = z.infer<typeof schema>;
+const schema = (ar: boolean) =>
+  z.object({
+    email: z
+      .string()
+      .email(
+        ar ? "أدخل بريدًا إلكترونيًا صحيحًا." : "Enter a valid email address.",
+      ),
+    password: z
+      .string()
+      .min(
+        8,
+        ar
+          ? "كلمة المرور ٨ أحرف على الأقل."
+          : "Password must have at least 8 characters.",
+      ),
+    name: z
+      .string()
+      .min(
+        2,
+        ar ? "الاسم حرفان على الأقل." : "Name must have at least 2 characters.",
+      )
+      .max(100, ar ? "الاسم طويل جدًا." : "Name is too long.")
+      .optional(),
+  });
+type Values = z.infer<ReturnType<typeof schema>>;
 export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
   const { user, language, toggleLanguage } = useApp();
   const ar = language === "ar";
@@ -28,7 +47,7 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<Values>({ resolver: zodResolver(schema) });
+  } = useForm<Values>({ resolver: zodResolver(schema(ar)) });
   const submit = handleSubmit(async (values) => {
     setError("");
     setSuccess("");
@@ -45,6 +64,7 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
           password: values.password,
           options: {
             data: { full_name: values.name || values.email.split("@")[0] },
+            emailRedirectTo: window.location.origin,
           },
         });
         if (error) throw error;
@@ -160,7 +180,7 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
                 ? "مجتمعك الكروي ويوم المباراة في مكان واحد."
                 : "Football, community, and match day in one place."}
             </p>
-            <form className="form-stack" onSubmit={submit}>
+            <form className="form-stack" onSubmit={submit} noValidate>
               {mode === "signup" && (
                 <Field
                   label={ar ? "الاسم الكامل" : "Full name"}
