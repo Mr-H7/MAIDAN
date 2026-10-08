@@ -44,7 +44,7 @@ try {
       body: JSON.stringify({ message: "Simulated test response" }),
     });
   });
-  await page.goto(base);
+  await page.goto(`${base}/auth`);
   await page.getByRole("button", { name: "جديد هنا؟ أنشئ حسابًا" }).click();
   await page.getByLabel("الاسم الكامل").fill("Fixture Player");
   await page.getByLabel("البريد الإلكتروني").fill("fixture@example.invalid");

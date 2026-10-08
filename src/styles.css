@@ -591,6 +591,51 @@ a {
   width: auto;
   min-width: 160px;
 }
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  justify-content: center;
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.legal-links a {
+  color: var(--blue);
+}
+.public-shell {
+  min-height: 100vh;
+}
+.public-main {
+  padding-bottom: 24px;
+}
+.public-footer {
+  padding: 8px 20px 28px;
+}
+.legal h2 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.legal p {
+  margin: 0;
+  line-height: 1.7;
+}
+.google-button {
+  width: 100%;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--graphite);
+  font-weight: 800;
+}
+.google-button:disabled {
+  opacity: 0.6;
+}
 .empty {
   padding: 34px;
   text-align: center;
