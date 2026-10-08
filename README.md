@@ -27,9 +27,10 @@ The MAIDAN Supabase project is `rynofloqzddbdtqtyboj`. The initial migration has
 
 - `npm run build`: passes.
 - `npm test`: four deterministic team-balancing and rating-priority tests pass.
-- `supabase/tests/security.sql` contains transactional group-isolation and admin-role checks. It has not run because no database is connected.
-- Initial migration: applied on the MAIDAN Supabase project. The live schema has 18 public tables, all with RLS enabled.
-- Authenticated-player RLS behavior, QR expiry, roster transitions, multi-device Realtime, and deployment: **not yet verified**. Auth test-account creation is currently rate limited.
+- `supabase/tests/security.sql` contains a local seed-based SQL check; the live signed-in API tests are recorded in `SECURITY_TEST_RESULTS.md`.
+- Both migrations are applied on the MAIDAN Supabase project. The live schema has 18 public tables, all with RLS enabled.
+- Three real Auth accounts passed 52 signed-in API checks, then QR expiry and five follow-up checks passed. Group isolation, permission denials, Maqraa attendance, Friday pre-registration, confirmation, and roster locking were exercised.
+- Full 20-player team save/publish, valid-match referee operations, eligible match ratings, browser session persistence, multi-device Realtime, and deployment remain **unverified**. Do not deploy yet.
 - English layout is implemented; Arabic switches typography and direction and translates the home/navigation labels. Full Arabic copy remains incomplete.
 
 ## Critical verification checklist for a connected project

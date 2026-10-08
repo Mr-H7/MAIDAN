@@ -1,6 +1,6 @@
 # MAIDAN security audit — 2026-10-08
 
-The MAIDAN project is `rynofloqzddbdtqtyboj`. The applied migration history is `20261008085320_maidan_initial` followed by `20261008090319_security_hardening`. Do not rerun either migration. This is a static and catalog audit; signed-in player tests remain pending.
+The MAIDAN project is `rynofloqzddbdtqtyboj`. The applied migration history is `20261008085320_maidan_initial` followed by `20261008090319_security_hardening`. Do not rerun either migration. This is a static and catalog audit supplemented by the signed-in tests in `SECURITY_TEST_RESULTS.md`.
 
 ## Callable function review
 
@@ -38,4 +38,4 @@ All 23 public RPCs are `SECURITY DEFINER` with `search_path=''`. They use schema
 
 The Supabase Security Advisor still reports 23 public definer RPC warnings. These are expected for the controlled RPC design; their safety depends on the checks above and live unauthorized-call tests. The two private-table no-policy findings are informational deny-all findings. The advisor also reports leaked-password protection disabled, which is an Auth setting outside these migrations: [password security guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
 
-The publishable-key API connection was tested. An anonymous `SELECT` from `public.groups` was denied by the database. Actual signed-in player tests, group isolation, workflow tests, and React browser verification remain required before deployment.
+The publishable-key API connection was tested. An anonymous `SELECT` from `public.groups` was denied by the database. Three real signed-in accounts passed group-isolation and permission-denial checks. Complete team/match/rating workflows and React browser verification remain required before deployment.
