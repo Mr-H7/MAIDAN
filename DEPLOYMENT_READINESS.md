@@ -1,6 +1,6 @@
 # MAIDAN preview deployment readiness — 2026-10-08
 
-Target source: `Mr-H7/MAIDAN` main. Supabase project: `rynofloqzddbdtqtyboj`. This review did not deploy the app or change the database.
+Target source: `Mr-H7/MAIDAN` main. Supabase project: `rynofloqzddbdtqtyboj`. This document records the earlier preview plan; current production results are in `PRODUCTION_ACCEPTANCE.md`.
 
 ## Verified locally
 
@@ -19,17 +19,17 @@ Target source: `Mr-H7/MAIDAN` main. Supabase project: `rynofloqzddbdtqtyboj`. Th
 
 1. Create or link a Vercel project to `Mr-H7/MAIDAN` with Vite as the framework, repository root as the root directory, `npm run build` as the build command, and `dist` as output. The checked SPA rewrite follows [Vercel's Vite guidance](https://vercel.com/docs/frameworks/frontend/vite). Keep the first deployment in **Preview** and enable deployment protection for invited testers. Do not promote to Production.
 2. Set exactly two frontend environment variables for Preview: `VITE_SUPABASE_URL=https://rynofloqzddbdtqtyboj.supabase.co` and the MAIDAN `VITE_SUPABASE_PUBLISHABLE_KEY` from Supabase. Do not add `SUPABASE_ADMIN_KEY`, a service-role key, or database credentials. Repeat for Production only when a production release is approved.
-3. Once Vercel returns the exact preview origin, add `https://<exact-preview-host>` to Supabase Auth **Additional Redirect URLs** for project `rynofloqzddbdtqtyboj`. Sign-up now passes `window.location.origin` as `emailRedirectTo`; [Supabase requires this URL in its redirect allowlist](https://supabase.com/docs/guides/auth/redirect-urls). Use the exact host for the first preview, rather than a broad wildcard. Set the Supabase **Site URL** to the approved permanent production origin when that exists. Test an email confirmation link on the preview origin before inviting anyone.
+3. Production builds now direct signup confirmation to the canonical public origin `https://maidan-cyan.vercel.app/`, even when opened through a protected Vercel deployment hostname. [Supabase requires this URL in its redirect allowlist](https://supabase.com/docs/guides/auth/redirect-urls). Keep the Supabase **Site URL** on the same public origin. Test an actual confirmation email before inviting anyone.
 4. Confirm the preview deployment serves `/`, `/profile`, `/booking`, and `/matches` on direct navigation and refresh. Confirm its Vercel environment contains only the two public frontend variables and that a preview build does not reveal private values.
 
-There is currently no MAIDAN Vercel project or preview URL visible to the connected account. Consequently the Vercel environment, deployment protection, deployed routing, email redirect allowlist, and live confirmation flow are **pending**, not passed.
+The Vercel project was subsequently created and deployed at `https://maidan-cyan.vercel.app/`. Its production behavior and remaining acceptance gates are tracked in `PRODUCTION_ACCEPTANCE.md`.
 
 ## Supabase Security Advisor, refreshed 2026-10-08
 
 - **23 WARN:** authenticated users can invoke intentionally exposed `SECURITY DEFINER` application RPCs. The prior [security audit](SECURITY_AUDIT.md) and [live football tests](LIVE_FOOTBALL_TEST_RESULTS.md) record scoped authorization checks and critical denials; the advisor finding remains. Review every changed RPC before a production release. [Supabase remediation](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
 - **2 INFO:** `private.maqraa_tokens` and `private.super_admins` have RLS and no allow policies. Their inaccessibility to ordinary users is intentional and was tested. [Supabase explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
 - **1 WARN:** leaked-password protection is disabled. Enable it in Supabase Auth password security settings if available for this project, then rerun the advisor and test sign-up with a disposable account. Until then, breached passwords may be accepted. [Supabase guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
-- The dedicated `maidan_local_testing` secret key was removed from local files after Phase C. **Its project-side revocation has not been confirmed.** The project owner should revoke it before a public release.
+- The dedicated `maidan_local_testing` secret key was removed from local files after Phase C and its project-side revocation was verified on 2026-10-08.
 
 ## Mobile smoke test at the first preview URL
 

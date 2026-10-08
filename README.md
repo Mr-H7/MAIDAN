@@ -21,7 +21,7 @@ The seed supplies a sample group, 20 placeholder players, a Tuesday Maqraa, and 
 
 ## Production setup
 
-The MAIDAN Supabase project is `rynofloqzddbdtqtyboj`. The initial migration has been applied; **do not rerun it**. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the Vercel project only after live security and workflow checks pass. The Vercel SPA rewrite is in `vercel.json`. Add the deployed URL to Supabase Auth redirect URLs before deployment.
+The MAIDAN Supabase project is `rynofloqzddbdtqtyboj`. The initial migration has been applied; **do not rerun it**. Vercel serves the app at `https://maidan-cyan.vercel.app/`; the SPA rewrite is in `vercel.json`. Supabase Auth's Site URL and redirect allowlist use this public origin. Production builds send signup confirmation to this origin, including when the build is opened through a protected Vercel deployment hostname.
 
 ## Verification status
 
@@ -32,7 +32,7 @@ The MAIDAN Supabase project is `rynofloqzddbdtqtyboj`. The initial migration has
 - Three real Auth accounts passed 52 signed-in API checks, then QR expiry and five follow-up checks passed. Group isolation, permission denials, Maqraa attendance, Friday pre-registration, confirmation, and roster locking were exercised.
 - A separate 21-identity disposable Auth run passed 52 live lifecycle and two-browser checks: 20 confirmations, roster lock, 4 × 5 team balance and swap, publishing, fixtures, referee operations, goals/cards/hat-trick reward, ratings, permission denials, and Realtime. See `LIVE_FOOTBALL_TEST_RESULTS.md`. The fixture group and Auth users were removed afterward.
 - Arabic RTL is the first-run default and the main player and admin workflows now have Arabic copy. English LTR remains selectable. Auth viewport checks passed at 320–1280 px. The profile statistics card now has component tests for scoped values and error handling; its live signed-in UI still needs a preview smoke test. See `DEPLOYMENT_READINESS.md`.
-- Do not deploy publicly yet: revoke the dedicated test key, configure and verify production Auth redirect URLs and Vercel environment variables, and resolve or explicitly accept the remaining advisor findings.
+- The app is deployed publicly, but real players must not be invited until the signed-in production and email-confirmation checks in `PRODUCTION_ACCEPTANCE.md` pass. The dedicated test key was revoked; Security Advisor findings remain.
 
 ## Critical verification checklist for a connected project
 

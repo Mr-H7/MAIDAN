@@ -64,7 +64,9 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
           password: values.password,
           options: {
             data: { full_name: values.name || values.email.split("@")[0] },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: import.meta.env.PROD
+              ? "https://maidan-cyan.vercel.app/"
+              : window.location.origin,
           },
         });
         if (error) throw error;
