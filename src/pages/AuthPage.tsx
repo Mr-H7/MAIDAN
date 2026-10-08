@@ -16,7 +16,8 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
-  const { user } = useApp();
+  const { user, language, toggleLanguage } = useApp();
+  const ar = language === "ar";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -48,7 +49,9 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
         });
         if (error) throw error;
         setSuccess(
-          "Account created. Check your email if confirmation is enabled.",
+          ar
+            ? "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده إذا طُلب ذلك."
+            : "Account created. Check your email if confirmation is enabled.",
         );
       }
     } catch (e) {
@@ -70,7 +73,29 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
   };
   return (
     <div className="auth-wrap">
+      <div className="auth-intro" aria-hidden="true">
+        <img src="/brand/mark.png" alt="" />
+        <span className="eyebrow">MAIDAN | ميدان</span>
+        <h2>
+          {ar ? "مكان فريقك. يوم مباراتك." : "Your team. Your match day."}
+        </h2>
+        <p>
+          {ar
+            ? "نظّم الحضور، كوّن الفرق، وتابع كل لحظة على أرض الملعب."
+            : "Bring your community together for every session, team and match."}
+        </p>
+      </div>
       <Card className="auth-card">
+        <div className="auth-language">
+          <button
+            type="button"
+            className="group-switch"
+            onClick={toggleLanguage}
+            aria-label={ar ? "Switch to English" : "التبديل إلى العربية"}
+          >
+            {ar ? "English" : "العربية"}
+          </button>
+        </div>
         <img
           className="auth-logo"
           src="/brand/maidan-logo.png"
@@ -78,13 +103,17 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
         />
         {onboarding ? (
           <>
-            <h1 className="page-title">Start your group</h1>
+            <h1 className="page-title">
+              {ar ? "ابدأ مجموعتك" : "Start your group"}
+            </h1>
             <p>
-              Create your first football community. You will be its group admin.
+              {ar
+                ? "أنشئ مجتمعك الكروي الأول. ستكون مشرف المجموعة."
+                : "Create your first football community. You will be its group admin."}
             </p>
             <div className="form-stack">
               <Field
-                label="Group name"
+                label={ar ? "اسم المجموعة" : "Group name"}
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
               />
@@ -92,11 +121,12 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
                 disabled={busy || groupName.trim().length < 2}
                 onClick={makeGroup}
               >
-                Create group
+                {ar ? "إنشاء المجموعة" : "Create group"}
               </ActionButton>
               <div className="notice">
-                If an admin added your account to an existing group, refresh
-                your memberships to enter it.
+                {ar
+                  ? "إذا أضافك مشرف إلى مجموعة، حدّث عضوياتك للدخول إليها."
+                  : "If an admin added your account to an existing group, refresh your memberships to enter it."}
               </div>
               <ActionButton
                 variant="secondary"
@@ -107,36 +137,47 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
                   })
                 }
               >
-                Refresh my groups
+                {ar ? "تحديث مجموعاتي" : "Refresh my groups"}
               </ActionButton>
               <ActionButton variant="quiet" onClick={() => db().auth.signOut()}>
-                Sign out
+                {ar ? "تسجيل الخروج" : "Sign out"}
               </ActionButton>
             </div>
           </>
         ) : (
           <>
             <h1 className="page-title">
-              {mode === "signin" ? "Welcome back" : "Join MAIDAN"}
+              {mode === "signin"
+                ? ar
+                  ? "مرحبًا بعودتك"
+                  : "Welcome back"
+                : ar
+                  ? "انضم إلى ميدان"
+                  : "Join MAIDAN"}
             </h1>
-            <p>Football, community, and match day in one place.</p>
+            <p>
+              {ar
+                ? "مجتمعك الكروي ويوم المباراة في مكان واحد."
+                : "Football, community, and match day in one place."}
+            </p>
             <form className="form-stack" onSubmit={submit}>
               {mode === "signup" && (
                 <Field
-                  label="Full name"
+                  label={ar ? "الاسم الكامل" : "Full name"}
                   {...register("name")}
                   error={errors.name?.message}
                 />
               )}
               <Field
-                label="Email"
+                label={ar ? "البريد الإلكتروني" : "Email"}
+                dir="ltr"
                 type="email"
                 autoComplete="email"
                 {...register("email")}
                 error={errors.email?.message}
               />
               <Field
-                label="Password"
+                label={ar ? "كلمة المرور" : "Password"}
                 type="password"
                 autoComplete={
                   mode === "signin" ? "current-password" : "new-password"
@@ -145,7 +186,13 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
                 error={errors.password?.message}
               />
               <ActionButton type="submit" disabled={isSubmitting} arrow>
-                {mode === "signin" ? "Sign in" : "Create account"}
+                {mode === "signin"
+                  ? ar
+                    ? "تسجيل الدخول"
+                    : "Sign in"
+                  : ar
+                    ? "إنشاء حساب"
+                    : "Create account"}
               </ActionButton>
             </form>
             <button
@@ -158,8 +205,12 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
               }}
             >
               {mode === "signin"
-                ? "New here? Create an account"
-                : "Already registered? Sign in"}
+                ? ar
+                  ? "جديد هنا؟ أنشئ حسابًا"
+                  : "New here? Create an account"
+                : ar
+                  ? "لديك حساب؟ سجّل الدخول"
+                  : "Already registered? Sign in"}
             </button>
           </>
         )}

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "../lib/supabase";
 import { ActionButton } from "./ui/ActionButton";
 import { Card } from "./ui/Card";
+import { useApp } from "../context/AppContext";
 type CardEvent = {
   id: string;
   group_id: string;
@@ -19,6 +20,8 @@ export function DisciplineAdmin({
   groupId: string;
   enabled: boolean;
 }) {
+  const { language } = useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
   const [green, setGreen] = useState("");
   const [red, setRed] = useState("");
@@ -75,7 +78,9 @@ export function DisciplineAdmin({
     if (error) setNotice(error.message);
     else {
       setNotice(
-        "Redemption recorded. The red match event remains in the timeline.",
+        ar
+          ? "سُجل الاستبدال. تبقى البطاقة الحمراء في تسلسل أحداث المباراة."
+          : "Redemption recorded. The red match event remains in the timeline.",
       );
       setGreen("");
       setRed("");
@@ -85,14 +90,17 @@ export function DisciplineAdmin({
   };
   return (
     <Card>
-      <h2 className="section-title">Disciplinary redemption</h2>
+      <h2 className="section-title">
+        {ar ? "استبدال البطاقة التأديبية" : "Disciplinary redemption"}
+      </h2>
       <p className="muted tiny">
-        Admin approval is required. Redemption is tracked separately from the
-        match event.
+        {ar
+          ? "يلزم موافقة المشرف. يُسجل الاستبدال منفصلًا عن حدث المباراة."
+          : "Admin approval is required. Redemption is tracked separately from the match event."}
       </p>
       <div className="form-stack">
         <label className="field">
-          Red card
+          {ar ? "البطاقة الحمراء" : "Red card"}
           <select
             className="select"
             value={red}
@@ -101,33 +109,37 @@ export function DisciplineAdmin({
               setGreen("");
             }}
           >
-            <option value="">Select red card</option>
+            <option value="">
+              {ar ? "اختر البطاقة الحمراء" : "Select red card"}
+            </option>
             {redCards.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.profiles?.full_name || c.player_id} ·{" "}
-                {new Date(c.occurred_at).toLocaleDateString()}
+                {new Date(c.occurred_at).toLocaleDateString(ar ? "ar" : "en")}
               </option>
             ))}
           </select>
         </label>
         <label className="field">
-          Green card
+          {ar ? "البطاقة الخضراء" : "Green card"}
           <select
             className="select"
             value={green}
             onChange={(e) => setGreen(e.target.value)}
           >
-            <option value="">Select earned green card</option>
+            <option value="">
+              {ar ? "اختر بطاقة خضراء مكتسبة" : "Select earned green card"}
+            </option>
             {greenCards.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.profiles?.full_name || c.player_id} ·{" "}
-                {new Date(c.occurred_at).toLocaleDateString()}
+                {new Date(c.occurred_at).toLocaleDateString(ar ? "ar" : "en")}
               </option>
             ))}
           </select>
         </label>
         <label className="field">
-          Reason
+          {ar ? "السبب" : "Reason"}
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -140,11 +152,13 @@ export function DisciplineAdmin({
           }
           onClick={save}
         >
-          Authorize redemption
+          {ar ? "اعتماد الاستبدال" : "Authorize redemption"}
         </ActionButton>
         {!enabled && (
           <div className="notice">
-            Enable redemption in group settings first.
+            {ar
+              ? "فعّل الاستبدال في إعدادات المجموعة أولًا."
+              : "Enable redemption in group settings first."}
           </div>
         )}
         {notice && (

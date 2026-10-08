@@ -43,6 +43,8 @@ function defaultDates(zone: string) {
   };
 }
 function QrAdmin({ session }: { session: Maqraa }) {
+  const { language, membership } = useApp();
+  const ar = language === "ar";
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
@@ -70,17 +72,25 @@ function QrAdmin({ session }: { session: Maqraa }) {
         <div>
           <strong>{session.title}</strong>
           <div className="muted tiny">
-            {new Date(session.starts_at).toLocaleString()}
+            {new Date(session.starts_at).toLocaleString(ar ? "ar" : "en", {
+              timeZone: membership?.group.timezone || "Africa/Cairo",
+            })}
           </div>
         </div>
-        <span className="pill">{session.status}</span>
+        <span className="pill">
+          {ar
+            ? { scheduled: "مجدولة", active: "جارية", closed: "مغلقة" }[
+                session.status
+              ]
+            : session.status}
+        </span>
       </div>
       <div className="actions" style={{ marginTop: 14 }}>
         <ActionButton
           disabled={session.status !== "active" || mutation.isPending}
           onClick={() => mutation.mutate()}
         >
-          Generate 2 minute QR
+          {ar ? "إنشاء رمز QR لدقيقتين" : "Generate 2 minute QR"}
         </ActionButton>
       </div>
       {token && (
@@ -89,8 +99,9 @@ function QrAdmin({ session }: { session: Maqraa }) {
             <QRCodeSVG value={url} size={220} includeMargin />
           </div>
           <p className="tiny muted">
-            This QR expires after 2 minutes. Generate another to continue check
-            in.
+            {ar
+              ? "تنتهي صلاحية الرمز بعد دقيقتين. أنشئ رمزًا جديدًا لمواصلة التسجيل."
+              : "This QR expires after 2 minutes. Generate another to continue check in."}
           </p>
         </>
       )}
@@ -99,7 +110,21 @@ function QrAdmin({ session }: { session: Maqraa }) {
   );
 }
 export function AdminPage() {
-  const { groupId, membership } = useApp();
+  const { groupId, membership, language } = useApp();
+  const ar = language === "ar";
+  const t = (en: string, arabic: string) => (ar ? arabic : en);
+  const bookingLabel = (status: string) =>
+    ar
+      ? (
+          {
+            pending: "قيد الانتظار",
+            pre_registered: "مسجل مبدئيًا",
+            confirmed: "مؤكد",
+            declined: "اعتذر",
+            waitlisted: "قائمة الانتظار",
+          } as Record<string, string>
+        )[status] || status
+      : status.replace("_", " ");
   const client = useQueryClient();
   const zone = membership?.group.timezone || "Africa/Cairo";
   const defaults = defaultDates(zone);
@@ -163,7 +188,7 @@ export function AdminPage() {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["football", groupId] });
       client.invalidateQueries({ queryKey: ["maqraa", groupId] });
-      setNotice("Sessions created.");
+      setNotice(t("Sessions created.", "أُنشئت الجلسات."));
     },
     onError: (e) => setNotice(e.message),
   });
@@ -177,7 +202,7 @@ export function AdminPage() {
     }) => adminSetBooking(active!.id, userId, status),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["bookings", active?.id] });
-      setNotice("Attendance updated.");
+      setNotice(t("Attendance updated.", "حُدّث الحضور."));
     },
     onError: (e) => setNotice(e.message),
   });
@@ -185,7 +210,7 @@ export function AdminPage() {
     mutationFn: () => lockRoster(active!.id),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["football", groupId] });
-      setNotice("Roster locked.");
+      setNotice(t("Roster locked.", "أُغلقت القائمة."));
     },
     onError: (e) => setNotice(e.message),
   });
@@ -193,7 +218,7 @@ export function AdminPage() {
     mutationFn: () => scheduleMatches(active!.id),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["matches", active?.id] });
-      setNotice("Matches scheduled.");
+      setNotice(t("Matches scheduled.", "جُدولت المباريات."));
     },
     onError: (e) => setNotice(e.message),
   });
@@ -207,7 +232,7 @@ export function AdminPage() {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["players", groupId] });
-      setNotice("Player added.");
+      setNotice(t("Player added.", "أُضيف اللاعب."));
       setEmail("");
     },
     onError: (e) => setNotice(e.message),
@@ -219,7 +244,13 @@ export function AdminPage() {
     });
     if (error) setNotice(error.message);
     else {
-      setNotice(`Maqraa ${status}.`);
+      setNotice(
+        ar
+          ? status === "active"
+            ? "بدأت المقرأة."
+            : "أُغلقت المقرأة."
+          : `Maqraa ${status}.`,
+      );
       client.invalidateQueries({ queryKey: ["maqraa", groupId] });
     }
   };
@@ -233,7 +264,7 @@ export function AdminPage() {
       p_user_id: userId,
       p_role: role,
     });
-    setNotice(error?.message || "Official assigned.");
+    setNotice(error?.message || t("Official assigned.", "عُيّن الحكم."));
   };
   const rosterText = (bookings.data || [])
     .filter((x) => x.status === "confirmed")
@@ -243,27 +274,30 @@ export function AdminPage() {
     <div className="page-stack">
       <div>
         <span className="eyebrow">
-          Group operations · {membership?.group.name}
+          {t("Group operations", "إدارة المجموعة")} · {membership?.group.name}
         </span>
-        <h1 className="page-title">Admin dashboard</h1>
+        <h1 className="page-title">{t("Admin dashboard", "لوحة الإدارة")}</h1>
         <p className="muted">
-          Manage the weekly community and football workflow.
+          {t(
+            "Manage the weekly community and football workflow.",
+            "إدارة لقاءات المجتمع وكرة القدم الأسبوعية.",
+          )}
         </p>
       </div>
       <div className="metric-grid">
         <div className="metric">
           <div className="stat">{players.data?.length || 0}</div>
-          <div className="stat-label">Players</div>
+          <div className="stat-label">{t("Players", "اللاعبون")}</div>
         </div>
         <div className="metric">
           <div className="stat">
             {bookings.data?.filter((x) => x.status === "confirmed").length || 0}
           </div>
-          <div className="stat-label">Confirmed</div>
+          <div className="stat-label">{t("Confirmed", "المؤكدون")}</div>
         </div>
         <div className="metric">
           <div className="stat">{matches.data?.length || 0}</div>
-          <div className="stat-label">Matches</div>
+          <div className="stat-label">{t("Matches", "المباريات")}</div>
         </div>
       </div>
       {notice && (
@@ -276,42 +310,56 @@ export function AdminPage() {
       )}
       <div className="grid-two">
         <Card>
-          <h2 className="section-title">Create weekly sessions</h2>
+          <h2 className="section-title">
+            {t("Create weekly sessions", "إنشاء الجلسات الأسبوعية")}
+          </h2>
           <div className="form-stack">
             <Field
-              label="Tuesday Maqraa (group time)"
+              label={t(
+                "Tuesday Maqraa (group time)",
+                "مقرأة الثلاثاء (توقيت المجموعة)",
+              )}
               type="datetime-local"
               value={maqraaDate}
               onChange={(e) => setMaqraaDate(e.target.value)}
             />
             <Field
-              label="Friday football (group time)"
+              label={t(
+                "Friday football (group time)",
+                "كرة الجمعة (توقيت المجموعة)",
+              )}
               type="datetime-local"
               value={footballDate}
               onChange={(e) => setFootballDate(e.target.value)}
             />
             <Field
-              label="Venue"
+              label={t("Venue", "المكان")}
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
             />
             <p className="tiny muted">
-              Group display timezone: {membership?.group.timezone}. Times are
-              stored as timezone aware timestamps.
+              {t("Group display timezone", "المنطقة الزمنية للمجموعة")}:{" "}
+              {membership?.group.timezone}.{" "}
+              {t(
+                "Times are stored as timezone aware timestamps.",
+                "تُحفظ الأوقات مع المنطقة الزمنية.",
+              )}
             </p>
             <ActionButton
               disabled={create.isPending || !maqraaDate || !footballDate}
               onClick={() => create.mutate()}
             >
-              Create sessions
+              {t("Create sessions", "إنشاء الجلسات")}
             </ActionButton>
           </div>
         </Card>
         <Card>
-          <h2 className="section-title">Player management</h2>
+          <h2 className="section-title">
+            {t("Player management", "إدارة اللاعبين")}
+          </h2>
           <div className="form-stack">
             <Field
-              label="Existing account email"
+              label={t("Existing account email", "بريد حساب موجود")}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -320,11 +368,13 @@ export function AdminPage() {
               disabled={invite.isPending || !email.includes("@")}
               onClick={() => invite.mutate()}
             >
-              Add player
+              {t("Add player", "إضافة لاعب")}
             </ActionButton>
             <p className="tiny muted">
-              The player must create a MAIDAN account first. Only a group admin
-              can add members.
+              {t(
+                "The player must create a MAIDAN account first. Only a group admin can add members.",
+                "يجب أن ينشئ اللاعب حساب ميدان أولًا. لا يضيف الأعضاء إلا مشرف المجموعة.",
+              )}
             </p>
           </div>
         </Card>
@@ -332,7 +382,9 @@ export function AdminPage() {
       <InitialAssessments groupId={groupId!} players={players.data || []} />
       {membership?.group && <GroupSettings group={membership.group} />}
       <section>
-        <h2 className="section-title">Maqraa QR administration</h2>
+        <h2 className="section-title">
+          {t("Maqraa QR administration", "إدارة رمز المقرأة")}
+        </h2>
         <div className="grid-two">
           {maqraa.data?.map((s) => (
             <div key={s.id}>
@@ -343,7 +395,7 @@ export function AdminPage() {
                     variant="secondary"
                     onClick={() => setMaqraaStatus(s.id, "active")}
                   >
-                    Start session
+                    {t("Start session", "بدء الجلسة")}
                   </ActionButton>
                 )}
                 {s.status === "active" && (
@@ -351,14 +403,16 @@ export function AdminPage() {
                     variant="quiet"
                     onClick={() => setMaqraaStatus(s.id, "closed")}
                   >
-                    Close session
+                    {t("Close session", "إغلاق الجلسة")}
                   </ActionButton>
                 )}
               </div>
             </div>
           ))}
           {maqraa.data?.length === 0 && (
-            <Card className="empty">No Maqraa sessions.</Card>
+            <Card className="empty">
+              {t("No Maqraa sessions.", "لا توجد جلسات مقرأة.")}
+            </Card>
           )}
         </div>
         {maqraa.data?.[0] && (
@@ -369,17 +423,22 @@ export function AdminPage() {
         )}
       </section>
       <section>
-        <h2 className="section-title">Friday attendance administration</h2>
+        <h2 className="section-title">
+          {t("Friday attendance administration", "إدارة حضور الجمعة")}
+        </h2>
         {sessions.data && (
           <select
             className="select"
-            aria-label="Friday session"
+            aria-label={t("Friday session", "جلسة الجمعة")}
             value={active?.id || ""}
             onChange={(e) => setSelectedSession(e.target.value)}
           >
             {sessions.data.map((s) => (
               <option key={s.id} value={s.id}>
-                {new Date(s.starts_at).toLocaleDateString()} · {s.status}
+                {new Date(s.starts_at).toLocaleDateString(ar ? "ar" : "en", {
+                  timeZone: zone,
+                })}{" "}
+                · {s.status}
               </option>
             ))}
           </select>
@@ -387,7 +446,11 @@ export function AdminPage() {
         {active && (
           <Card style={{ marginTop: 12 }}>
             <div className="row">
-              <strong>{new Date(active.starts_at).toLocaleString()}</strong>
+              <strong>
+                {new Date(active.starts_at).toLocaleString(ar ? "ar" : "en", {
+                  timeZone: zone,
+                })}
+              </strong>
               <span className="pill blue">
                 {bookings.data?.filter((x) => x.status === "confirmed")
                   .length || 0}
@@ -399,22 +462,26 @@ export function AdminPage() {
                 disabled={active.status !== "open" || lock.isPending}
                 onClick={() => lock.mutate()}
               >
-                Lock roster
+                {t("Lock roster", "إغلاق القائمة")}
               </ActionButton>
               <ActionButton
                 variant="secondary"
                 disabled={!rosterText}
                 onClick={async () => {
                   await navigator.clipboard.writeText(
-                    `MAIDAN · Friday roster\n${rosterText}`,
+                    `${t("MAIDAN · Friday roster", "ميدان · قائمة الجمعة")}\n${rosterText}`,
                   );
-                  setNotice("Confirmed roster copied.");
+                  setNotice(
+                    t("Confirmed roster copied.", "نُسخت قائمة المؤكدين."),
+                  );
                 }}
               >
-                Copy WhatsApp roster
+                {t("Copy WhatsApp roster", "نسخ القائمة لواتساب")}
               </ActionButton>
               <Link to="/teams">
-                <ActionButton variant="quiet">Team builder</ActionButton>
+                <ActionButton variant="quiet">
+                  {t("Team builder", "تكوين الفرق")}
+                </ActionButton>
               </Link>
             </div>
             <div className="list">
@@ -425,12 +492,18 @@ export function AdminPage() {
                     <div>
                       <strong>{p.full_name}</strong>
                       <small>
-                        {booking?.status?.replace("_", " ") || "not registered"}
+                        {booking
+                          ? bookingLabel(booking.status)
+                          : t("not registered", "غير مسجل")}
                       </small>
                     </div>
                     <select
                       className="select"
-                      aria-label={`Attendance for ${p.full_name}`}
+                      aria-label={
+                        ar
+                          ? `حضور ${p.full_name}`
+                          : `Attendance for ${p.full_name}`
+                      }
                       style={{ width: 150 }}
                       value={booking?.status || "pending"}
                       onChange={(e) =>
@@ -448,7 +521,7 @@ export function AdminPage() {
                         "waitlisted",
                       ].map((s) => (
                         <option key={s} value={s}>
-                          {s.replace("_", " ")}
+                          {bookingLabel(s)}
                         </option>
                       ))}
                     </select>
@@ -465,16 +538,21 @@ export function AdminPage() {
       />
       <section>
         <div className="row">
-          <h2 className="section-title">Match operations</h2>
+          <h2 className="section-title">
+            {t("Match operations", "إدارة المباريات")}
+          </h2>
           <Link to="/matches" style={{ color: "var(--blue)" }}>
-            View schedule
+            {t("View schedule", "عرض الجدول")}
           </Link>
         </div>
         <ActionButton
           disabled={!active || matches.data?.length !== 0 || fixtures.isPending}
           onClick={() => fixtures.mutate()}
         >
-          Generate fixtures from published teams
+          {t(
+            "Generate fixtures from published teams",
+            "جدولة مباريات الفرق المنشورة",
+          )}
         </ActionButton>
         {active && (
           <FixtureOrder sessionId={active.id} matches={matches.data || []} />
@@ -485,16 +563,29 @@ export function AdminPage() {
               <div className="row">
                 <Link to={`/matches/${m.id}`}>
                   <strong>
-                    Match {m.order_no}: {m.home_team?.name} vs{" "}
-                    {m.away_team?.name}
+                    {t("Match", "المباراة")} {m.order_no}: {m.home_team?.name}{" "}
+                    {t("vs", "ضد")} {m.away_team?.name}
                   </strong>
                 </Link>
-                <span className="pill gray">{m.status}</span>
+                <span className="pill gray">
+                  {ar
+                    ? {
+                        scheduled: "مجدولة",
+                        live: "جارية",
+                        paused: "متوقفة",
+                        completed: "مكتملة",
+                      }[m.status]
+                    : m.status}
+                </span>
               </div>
               <div className="toolbar" style={{ marginTop: 12 }}>
                 {(["head", "assistant"] as const).map((role) => (
                   <label className="field" key={role}>
-                    {role} referee
+                    {ar
+                      ? role === "head"
+                        ? "الحكم الرئيسي"
+                        : "الحكم المساعد"
+                      : `${role} referee`}
                     <select
                       className="select"
                       defaultValue=""
@@ -503,7 +594,7 @@ export function AdminPage() {
                           void assign(m.id, e.target.value, role);
                       }}
                     >
-                      <option value="">Assign</option>
+                      <option value="">{t("Assign", "تعيين")}</option>
                       {players.data
                         ?.filter((p) => officialIds.has(p.id))
                         .map((p) => (

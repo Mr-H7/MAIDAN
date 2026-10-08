@@ -49,6 +49,35 @@ export async function getProfile(userId: string): Promise<Profile> {
     .single();
   return { ...unwrap(data as Profile, error), initial_ovr: null };
 }
+export async function getPlayerStats(groupId: string, userId: string) {
+  const [events, summary] = await Promise.all([
+    db()
+      .from("match_events")
+      .select("event_type")
+      .eq("group_id", groupId)
+      .eq("player_id", userId)
+      .is("reversed_at", null),
+    db()
+      .from("player_rating_summaries")
+      .select("overall_ovr,rating_count")
+      .eq("group_id", groupId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  if (events.error) throw events.error;
+  if (summary.error) throw summary.error;
+  return {
+    goals:
+      events.data?.filter((event) => event.event_type === "goal").length || 0,
+    yellow:
+      events.data?.filter((event) => event.event_type === "yellow").length || 0,
+    red: events.data?.filter((event) => event.event_type === "red").length || 0,
+    green:
+      events.data?.filter((event) => event.event_type === "green").length || 0,
+    communityOvr: summary.data?.overall_ovr ?? null,
+    ratingCount: summary.data?.rating_count || 0,
+  };
+}
 export async function updateProfile(
   userId: string,
   patch: Pick<Profile, "full_name" | "preferred_position" | "self_ovr">,

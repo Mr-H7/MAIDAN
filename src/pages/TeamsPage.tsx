@@ -20,7 +20,8 @@ import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
 import type { Profile } from "../lib/types";
 export function TeamsPage() {
-  const { groupId, isAdmin } = useApp();
+  const { groupId, isAdmin, language } = useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState<Assignment[] | null>(null);
@@ -107,7 +108,11 @@ export function TeamsPage() {
     const source = copy.findIndex((a) => a.userIds.includes(userId));
     if (source < 0 || source === target) return;
     if (copy[target].userIds.length >= 5) {
-      setError("Target team is full. Select a player there to swap.");
+      setError(
+        ar
+          ? "الفريق ممتلئ. اختر لاعبًا منه للتبديل."
+          : "Target team is full. Select a player there to swap.",
+      );
       return;
     }
     copy[source].userIds = copy[source].userIds.filter((id) => id !== userId);
@@ -129,36 +134,50 @@ export function TeamsPage() {
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Friday football</span>
-        <h1 className="page-title">Team builder</h1>
+        <span className="eyebrow">{ar ? "كرة الجمعة" : "Friday football"}</span>
+        <h1 className="page-title">{ar ? "تكوين الفرق" : "Team builder"}</h1>
         <p className="muted">
-          Rating aware, deterministic assignments. Admin changes are saved to
-          the group database.
+          {ar
+            ? "توزيع ثابت يراعي التقييمات. تُحفظ تعديلات المشرف في قاعدة بيانات المجموعة."
+            : "Rating aware, deterministic assignments. Admin changes are saved to the group database."}
         </p>
       </div>
       {(sessions.data?.length || 0) > 1 && (
         <select
           className="select"
-          aria-label="Session"
+          aria-label={ar ? "الجلسة" : "Session"}
           value={selected || active?.id || ""}
           onChange={(e) => setSelected(e.target.value)}
         >
           {sessions.data?.map((s) => (
             <option key={s.id} value={s.id}>
-              {new Date(s.starts_at).toLocaleDateString()}
+              {new Date(s.starts_at).toLocaleDateString(ar ? "ar" : "en", {
+                timeZone: "Africa/Cairo",
+              })}
             </option>
           ))}
         </select>
       )}
-      {!active && <Card className="empty">No Friday session scheduled.</Card>}
+      {!active && (
+        <Card className="empty">
+          {ar ? "لا توجد جلسة جمعة مجدولة." : "No Friday session scheduled."}
+        </Card>
+      )}
       {active && (
         <>
           <div className="toolbar">
-            <span className="pill gray">Roster {active.status}</span>
+            <span className="pill gray">
+              {ar ? "القائمة" : "Roster"}{" "}
+              {ar
+                ? { open: "مفتوحة", locked: "مغلقة", completed: "مكتملة" }[
+                    active.status
+                  ]
+                : active.status}
+            </span>
             <span className="pill blue">
               {bookings.data?.filter((x) => x.status === "confirmed").length ||
                 0}{" "}
-              confirmed
+              {ar ? "مؤكد" : "confirmed"}
             </span>
             {isAdmin && (
               <>
@@ -166,14 +185,14 @@ export function TeamsPage() {
                   disabled={active.status !== "locked"}
                   onClick={generate}
                 >
-                  Generate 4 × 5
+                  {ar ? "تكوين ٤ × ٥" : "Generate 4 × 5"}
                 </ActionButton>
                 <ActionButton
                   variant="secondary"
                   disabled={!draft || saved.isPending}
                   onClick={() => saved.mutate()}
                 >
-                  Save draft
+                  {ar ? "حفظ المسودة" : "Save draft"}
                 </ActionButton>
                 <ActionButton
                   variant="quiet"
@@ -185,7 +204,7 @@ export function TeamsPage() {
                   }
                   onClick={() => published.mutate()}
                 >
-                  Publish teams
+                  {ar ? "نشر الفرق" : "Publish teams"}
                 </ActionButton>
                 {teams.data?.[0]?.status === "published" && (
                   <ActionButton
@@ -193,7 +212,7 @@ export function TeamsPage() {
                     disabled={reopened.isPending}
                     onClick={() => reopened.mutate()}
                   >
-                    Reopen assignments
+                    {ar ? "إعادة فتح التوزيع" : "Reopen assignments"}
                   </ActionButton>
                 )}
               </>
@@ -206,8 +225,9 @@ export function TeamsPage() {
           )}
           {assignments.length === 0 && (
             <Card className="empty">
-              Teams have not been generated yet. The admin must lock 20
-              confirmed players first.
+              {ar
+                ? "لم تُكوّن الفرق بعد. يجب أن يغلق المشرف قائمة من ٢٠ لاعبًا مؤكدًا أولًا."
+                : "Teams have not been generated yet. The admin must lock 20 confirmed players first."}
             </Card>
           )}
           <div className="team-grid">
@@ -222,12 +242,18 @@ export function TeamsPage() {
                       {team.name}
                     </h2>
                     <span className="pill blue">
-                      OVR {teamAverage(members)}
+                      {ar ? "التقييم" : "OVR"} {teamAverage(members)}
                     </span>
                   </div>
                   <p className="muted tiny">
-                    {members.length} players ·{" "}
-                    {teams.data?.[index]?.status || "unsaved draft"}
+                    {members.length} {ar ? "لاعبين" : "players"} ·{" "}
+                    {ar
+                      ? teams.data?.[index]?.status === "published"
+                        ? "منشور"
+                        : teams.data?.[index]?.status === "draft"
+                          ? "مسودة"
+                          : "مسودة غير محفوظة"
+                      : teams.data?.[index]?.status || "unsaved draft"}
                   </p>
                   <div className="list">
                     {members.map((p) => (
@@ -235,14 +261,19 @@ export function TeamsPage() {
                         <div>
                           <strong>{p.full_name}</strong>
                           <small>
-                            {p.preferred_position || "Any position"} ·{" "}
-                            {effectiveRating(p)} OVR
+                            {p.preferred_position ||
+                              (ar ? "أي مركز" : "Any position")}{" "}
+                            · {effectiveRating(p)} {ar ? "تقييم" : "OVR"}
                           </small>
                         </div>
                         {isAdmin && (
                           <button
                             className="icon-button"
-                            aria-label={`Select ${p.full_name} for swap`}
+                            aria-label={
+                              ar
+                                ? `اختر ${p.full_name} للتبديل`
+                                : `Select ${p.full_name} for swap`
+                            }
                             onClick={() => {
                               if (moving && moving !== p.id) swap(moving, p.id);
                               else setMoving(p.id);
@@ -263,7 +294,7 @@ export function TeamsPage() {
                       variant="quiet"
                       onClick={() => move(moving, index)}
                     >
-                      Move selected here
+                      {ar ? "انقل اللاعب المحدد هنا" : "Move selected here"}
                     </ActionButton>
                   )}
                 </Card>

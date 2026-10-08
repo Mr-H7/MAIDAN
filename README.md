@@ -30,8 +30,9 @@ The MAIDAN Supabase project is `rynofloqzddbdtqtyboj`. The initial migration has
 - `supabase/tests/security.sql` contains a local seed-based SQL check; the live signed-in API tests are recorded in `SECURITY_TEST_RESULTS.md`.
 - Both migrations are applied on the MAIDAN Supabase project. The live schema has 18 public tables, all with RLS enabled.
 - Three real Auth accounts passed 52 signed-in API checks, then QR expiry and five follow-up checks passed. Group isolation, permission denials, Maqraa attendance, Friday pre-registration, confirmation, and roster locking were exercised.
-- Full 20-player team save/publish, valid-match referee operations, eligible match ratings, browser session persistence, multi-device Realtime, and deployment remain **unverified**. Do not deploy yet.
-- English layout is implemented; Arabic switches typography and direction and translates the home/navigation labels. Full Arabic copy remains incomplete.
+- A separate 21-identity disposable Auth run passed 52 live lifecycle and two-browser checks: 20 confirmations, roster lock, 4 × 5 team balance and swap, publishing, fixtures, referee operations, goals/cards/hat-trick reward, ratings, permission denials, and Realtime. See `LIVE_FOOTBALL_TEST_RESULTS.md`. The fixture group and Auth users were removed afterward.
+- Arabic RTL is the first-run default and the main player and admin workflows now have Arabic copy. English LTR remains selectable. Auth viewport checks passed at 320–1280 px. The newest profile statistics card has a passing build but no separate live UI test.
+- Do not deploy publicly yet: revoke the dedicated test key, configure and verify production Auth redirect URLs and Vercel environment variables, and resolve or explicitly accept the remaining advisor findings.
 
 ## Critical verification checklist for a connected project
 

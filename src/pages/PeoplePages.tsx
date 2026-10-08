@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "../context/AppContext";
-import { getPlayers, updateProfile } from "../lib/api";
+import { getPlayerStats, getPlayers, updateProfile } from "../lib/api";
 import { db } from "../lib/supabase";
 import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
 import { Field } from "../components/ui/Field";
 export function PlayersPage() {
-  const { groupId } = useApp();
+  const { groupId, language } = useApp();
+  const ar = language === "ar";
   const players = useQuery({
     queryKey: ["players", groupId],
     queryFn: () => getPlayers(groupId!),
@@ -21,15 +22,21 @@ export function PlayersPage() {
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Community</span>
-        <h1 className="page-title">Player directory</h1>
-        <p className="muted">Players in your current group.</p>
+        <span className="eyebrow">{ar ? "المجتمع" : "Community"}</span>
+        <h1 className="page-title">
+          {ar ? "دليل اللاعبين" : "Player directory"}
+        </h1>
+        <p className="muted">
+          {ar
+            ? "اللاعبون في مجموعتك الحالية."
+            : "Players in your current group."}
+        </p>
       </div>
       <Field
-        label="Search players"
+        label={ar ? "ابحث عن اللاعبين" : "Search players"}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Name"
+        placeholder={ar ? "الاسم" : "Name"}
       />
       <div className="grid-two">
         {filtered.map((player) => (
@@ -39,32 +46,57 @@ export function PlayersPage() {
               <div>
                 <strong>{player.full_name}</strong>
                 <div className="muted tiny">
-                  {player.preferred_position || "Position not set"}
+                  {player.preferred_position ||
+                    (ar ? "لم يُحدد المركز" : "Position not set")}
                 </div>
               </div>
             </div>
             {(player.overall_ovr != null || player.initial_ovr != null) && (
               <div className="pill blue" style={{ marginTop: 14 }}>
-                {player.overall_ovr != null ? "Community" : "Initial"} OVR{" "}
+                {player.overall_ovr != null
+                  ? ar
+                    ? "المجتمع"
+                    : "Community"
+                  : ar
+                    ? "الأولي"
+                    : "Initial"}{" "}
+                {ar ? "تقييم" : "OVR"}{" "}
                 {player.overall_ovr ?? player.initial_ovr}
               </div>
             )}
           </Card>
         ))}
       </div>
-      {players.isLoading && <div role="status">Loading players…</div>}
+      {players.isLoading && (
+        <div role="status">
+          {ar ? "جارٍ تحميل اللاعبين…" : "Loading players…"}
+        </div>
+      )}
       {players.isError && (
-        <div className="notice error">Could not load players.</div>
+        <div className="notice error">
+          {ar ? "تعذّر تحميل اللاعبين." : "Could not load players."}
+        </div>
       )}
       {players.data?.length === 0 && (
-        <Card className="empty">No players have joined this group.</Card>
+        <Card className="empty">
+          {ar
+            ? "لم ينضم لاعبون لهذه المجموعة بعد."
+            : "No players have joined this group."}
+        </Card>
       )}
     </div>
   );
 }
 export function ProfilePage() {
-  const { user, profile, memberships, groupId, selectGroup } = useApp();
+  const { user, profile, memberships, groupId, selectGroup, language } =
+    useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
+  const stats = useQuery({
+    queryKey: ["playerStats", groupId, user?.id],
+    queryFn: () => getPlayerStats(groupId!, user!.id),
+    enabled: !!groupId && !!user,
+  });
   const [name, setName] = useState(profile?.full_name || "");
   const [position, setPosition] = useState(profile?.preferred_position || "");
   const [selfOvr, setSelfOvr] = useState(profile?.self_ovr?.toString() || "");
@@ -78,40 +110,49 @@ export function ProfilePage() {
       }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["profile", user?.id] });
-      setNotice("Profile saved.");
+      setNotice(ar ? "حُفظ الملف الشخصي." : "Profile saved.");
     },
     onError: (e) => setNotice(e.message),
   });
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Your account</span>
-        <h1 className="page-title">Player profile</h1>
+        <span className="eyebrow">{ar ? "حسابك" : "Your account"}</span>
+        <h1 className="page-title">{ar ? "ملف اللاعب" : "Player profile"}</h1>
         <p className="muted">{user?.email}</p>
       </div>
       <Card>
         <div className="form-stack">
           <Field
-            label="Full name"
+            label={ar ? "الاسم الكامل" : "Full name"}
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
           />
           <label className="field">
-            Preferred position
+            {ar ? "المركز المفضل" : "Preferred position"}
             <select
               className="select"
               value={position}
               onChange={(e) => setPosition(e.target.value)}
             >
-              <option value="">Not set</option>
+              <option value="">{ar ? "غير محدد" : "Not set"}</option>
               {["Goalkeeper", "Defender", "Midfielder", "Forward"].map((x) => (
-                <option key={x}>{x}</option>
+                <option key={x} value={x}>
+                  {ar
+                    ? {
+                        Goalkeeper: "حارس مرمى",
+                        Defender: "مدافع",
+                        Midfielder: "وسط",
+                        Forward: "مهاجم",
+                      }[x]
+                    : x}
+                </option>
               ))}
             </select>
           </label>
           <Field
-            label="Self assessment OVR (0–100)"
+            label={ar ? "تقييمك الذاتي (٠–١٠٠)" : "Self assessment OVR (0–100)"}
             type="number"
             min={0}
             max={100}
@@ -119,7 +160,9 @@ export function ProfilePage() {
             onChange={(e) => setSelfOvr(e.target.value)}
           />
           <p className="tiny muted">
-            Your self assessment is separate from the community rating.
+            {ar
+              ? "تقييمك الذاتي منفصل عن تقييم المجتمع."
+              : "Your self assessment is separate from the community rating."}
           </p>
           <ActionButton
             disabled={
@@ -130,7 +173,7 @@ export function ProfilePage() {
             }
             onClick={() => mutation.mutate()}
           >
-            Save profile
+            {ar ? "حفظ الملف" : "Save profile"}
           </ActionButton>
           {notice && (
             <div
@@ -143,29 +186,77 @@ export function ProfilePage() {
         </div>
       </Card>
       <Card>
-        <h2 className="section-title">Groups</h2>
+        <h2 className="section-title">{ar ? "إحصاءاتي" : "My statistics"}</h2>
+        {stats.isLoading && (
+          <p className="muted">
+            {ar ? "جارٍ تحميل الإحصاءات…" : "Loading statistics…"}
+          </p>
+        )}
+        {stats.isError && (
+          <p className="notice error">
+            {ar ? "تعذّر تحميل الإحصاءات." : "Could not load statistics."}
+          </p>
+        )}
+        {stats.data && (
+          <div className="metric-grid">
+            {[
+              [ar ? "الأهداف" : "Goals", stats.data.goals],
+              [ar ? "البطاقات الصفراء" : "Yellow cards", stats.data.yellow],
+              [ar ? "البطاقات الحمراء" : "Red cards", stats.data.red],
+              [ar ? "البطاقات الخضراء" : "Green cards", stats.data.green],
+              [
+                ar ? "تقييم المجتمع" : "Community OVR",
+                stats.data.communityOvr ?? "—",
+              ],
+            ].map(([label, value]) => (
+              <div className="metric" key={label}>
+                <div className="stat">{value}</div>
+                <div className="stat-label">{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card>
+        <h2 className="section-title">{ar ? "المجموعات" : "Groups"}</h2>
         <div className="list">
           {memberships.map((m) => (
             <div className="list-row" key={m.group_id}>
               <div>
                 <strong>{m.group.name}</strong>
-                <div className="muted tiny">{m.role.replace("_", " ")}</div>
+                <div className="muted tiny">
+                  {ar
+                    ? {
+                        player: "لاعب",
+                        group_admin: "مشرف المجموعة",
+                        super_admin: "مشرف عام",
+                      }[m.role]
+                    : m.role.replace("_", " ")}
+                </div>
               </div>
               <button
                 className="group-switch"
                 type="button"
                 disabled={m.group_id === groupId}
                 onClick={() => selectGroup(m.group_id)}
-                aria-label={`Switch to ${m.group.name}`}
+                aria-label={
+                  ar ? `انتقل إلى ${m.group.name}` : `Switch to ${m.group.name}`
+                }
               >
-                {m.group_id === groupId ? "Current" : "Switch"}
+                {m.group_id === groupId
+                  ? ar
+                    ? "الحالية"
+                    : "Current"
+                  : ar
+                    ? "انتقال"
+                    : "Switch"}
               </button>
             </div>
           ))}
         </div>
       </Card>
       <ActionButton variant="quiet" onClick={() => db().auth.signOut()}>
-        Sign out
+        {ar ? "تسجيل الخروج" : "Sign out"}
       </ActionButton>
     </div>
   );

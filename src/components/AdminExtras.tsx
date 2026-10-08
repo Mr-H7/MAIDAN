@@ -4,6 +4,7 @@ import { db } from "../lib/supabase";
 import type { Maqraa, Profile } from "../lib/types";
 import { ActionButton } from "./ui/ActionButton";
 import { Card } from "./ui/Card";
+import { useApp } from "../context/AppContext";
 export function InitialAssessments({
   groupId,
   players,
@@ -11,6 +12,8 @@ export function InitialAssessments({
   groupId: string;
   players: Profile[];
 }) {
+  const { language } = useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
   const [userId, setUserId] = useState("");
   const [ovr, setOvr] = useState("50");
@@ -26,16 +29,18 @@ export function InitialAssessments({
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["players", groupId] });
-      setNotice("Initial assessment saved.");
+      setNotice(ar ? "حُفظ التقييم الأولي." : "Initial assessment saved.");
     },
     onError: (e) => setNotice(e.message),
   });
   return (
     <Card>
-      <h2 className="section-title">Initial player assessment</h2>
+      <h2 className="section-title">
+        {ar ? "التقييم الأولي للاعب" : "Initial player assessment"}
+      </h2>
       <div className="form-stack">
         <label className="field">
-          Player
+          {ar ? "اللاعب" : "Player"}
           <select
             className="select"
             value={userId}
@@ -48,7 +53,7 @@ export function InitialAssessments({
               );
             }}
           >
-            <option value="">Select player</option>
+            <option value="">{ar ? "اختر لاعبًا" : "Select player"}</option>
             {players.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.full_name}
@@ -57,7 +62,7 @@ export function InitialAssessments({
           </select>
         </label>
         <label className="field">
-          OVR · 0 to 100
+          {ar ? "التقييم · من ٠ إلى ١٠٠" : "OVR · 0 to 100"}
           <input
             type="number"
             min="0"
@@ -75,7 +80,7 @@ export function InitialAssessments({
           }
           onClick={() => mutation.mutate()}
         >
-          Save assessment
+          {ar ? "حفظ التقييم" : "Save assessment"}
         </ActionButton>
         {notice && (
           <div className={`notice ${mutation.isError ? "error" : "success"}`}>
@@ -93,6 +98,8 @@ export function MaqraaCorrection({
   session: Maqraa;
   players: Profile[];
 }) {
+  const { language } = useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
   const [userId, setUserId] = useState("");
   const [notice, setNotice] = useState("");
@@ -118,25 +125,28 @@ export function MaqraaCorrection({
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["maqraaAttendance", session.id] });
-      setNotice("Attendance correction saved.");
+      setNotice(ar ? "حُفظ تصحيح الحضور." : "Attendance correction saved.");
     },
     onError: (e) => setNotice(e.message),
   });
   return (
     <Card>
-      <h2 className="section-title">Manual Maqraa correction</h2>
+      <h2 className="section-title">
+        {ar ? "تصحيح حضور المقرأة" : "Manual Maqraa correction"}
+      </h2>
       <p className="muted tiny">
-        {attendance.data?.length || 0} checked in · {session.title}
+        {attendance.data?.length || 0} {ar ? "حاضر" : "checked in"} ·{" "}
+        {session.title}
       </p>
       <div className="form-stack">
         <label className="field">
-          Player
+          {ar ? "اللاعب" : "Player"}
           <select
             className="select"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           >
-            <option value="">Select player</option>
+            <option value="">{ar ? "اختر لاعبًا" : "Select player"}</option>
             {players.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.full_name}
@@ -150,14 +160,14 @@ export function MaqraaCorrection({
             disabled={!userId || mutation.isPending}
             onClick={() => mutation.mutate(true)}
           >
-            Mark present
+            {ar ? "تسجيل حاضر" : "Mark present"}
           </ActionButton>
           <ActionButton
             variant="quiet"
             disabled={!userId || mutation.isPending}
             onClick={() => mutation.mutate(false)}
           >
-            Remove check in
+            {ar ? "إزالة الحضور" : "Remove check in"}
           </ActionButton>
         </div>
         {notice && (

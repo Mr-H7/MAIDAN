@@ -34,6 +34,7 @@ function Scanner({ onResult }: { onResult: (value: string) => void }) {
 }
 export function MaqraaPage() {
   const { groupId, membership, language } = useApp();
+  const ar = language === "ar";
   const [params] = useSearchParams();
   const [showScanner, setShowScanner] = useState(false);
   const [manual, setManual] = useState("");
@@ -57,7 +58,9 @@ export function MaqraaPage() {
     },
     onSuccess: () => {
       setMessage(
-        "Attendance recorded. Friday pre-registration was created; confirm it separately.",
+        ar
+          ? "سُجّل حضورك. أُنشئ تسجيل مبدئي للجمعة؛ أكّد حضورك بشكل منفصل."
+          : "Attendance recorded. Friday pre-registration was created; confirm it separately.",
       );
       setShowScanner(false);
       client.invalidateQueries({ queryKey: ["maqraa", groupId] });
@@ -78,15 +81,29 @@ export function MaqraaPage() {
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Tuesday community</span>
-        <h1 className="page-title">Maqraa attendance</h1>
-        <p className="muted">Scan the current session QR while signed in.</p>
+        <span className="eyebrow">
+          {ar ? "لقاء الثلاثاء" : "Tuesday community"}
+        </span>
+        <h1 className="page-title">
+          {ar ? "حضور المقرأة" : "Maqraa attendance"}
+        </h1>
+        <p className="muted">
+          {ar
+            ? "امسح رمز الجلسة الحالية بعد تسجيل الدخول."
+            : "Scan the current session QR while signed in."}
+        </p>
       </div>
       <Card>
-        <h2 className="section-title">Check in</h2>
+        <h2 className="section-title">{ar ? "تسجيل الحضور" : "Check in"}</h2>
         <div className="actions">
           <ActionButton onClick={() => setShowScanner((v) => !v)}>
-            {showScanner ? "Close camera" : "Scan QR code"}
+            {showScanner
+              ? ar
+                ? "إغلاق الكاميرا"
+                : "Close camera"
+              : ar
+                ? "مسح رمز QR"
+                : "Scan QR code"}
           </ActionButton>
         </div>
         {showScanner && (
@@ -94,11 +111,12 @@ export function MaqraaPage() {
         )}
         <div className="form-stack" style={{ marginTop: 16 }}>
           <label className="field">
-            Paste QR link or token
+            {ar ? "ألصق رابط QR أو الرمز" : "Paste QR link or token"}
             <input
               value={manual}
               onChange={(e) => setManual(e.target.value)}
-              placeholder="Session QR link"
+              placeholder={ar ? "رابط رمز الجلسة" : "Session QR link"}
+              dir="ltr"
             />
           </label>
           <ActionButton
@@ -106,7 +124,7 @@ export function MaqraaPage() {
             disabled={!manual.trim() || mutation.isPending}
             onClick={() => mutation.mutate(manual)}
           >
-            Check in
+            {ar ? "تسجيل الحضور" : "Check in"}
           </ActionButton>
         </div>
         {message && (
@@ -119,7 +137,7 @@ export function MaqraaPage() {
         )}
       </Card>
       <section>
-        <h2 className="section-title">Sessions</h2>
+        <h2 className="section-title">{ar ? "الجلسات" : "Sessions"}</h2>
         <div className="list">
           {sessions.data?.map((x) => (
             <Card key={x.id}>
@@ -137,17 +155,29 @@ export function MaqraaPage() {
                     }).format(new Date(x.starts_at))}
                   </p>
                 </div>
-                <span className="pill">{x.status}</span>
+                <span className="pill">
+                  {ar
+                    ? { scheduled: "مجدولة", active: "جارية", closed: "مغلقة" }[
+                        x.status
+                      ]
+                    : x.status}
+                </span>
               </div>
             </Card>
           ))}
           {sessions.data?.length === 0 && (
-            <Card className="empty">No Maqraa sessions yet.</Card>
+            <Card className="empty">
+              {ar ? "لا توجد جلسات مقرأة بعد." : "No Maqraa sessions yet."}
+            </Card>
           )}
         </div>
       </section>
       {sessions.isError && (
-        <div className="notice error">Could not load Maqraa sessions.</div>
+        <div className="notice error">
+          {ar
+            ? "تعذّر تحميل جلسات المقرأة."
+            : "Could not load Maqraa sessions."}
+        </div>
       )}
     </div>
   );

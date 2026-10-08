@@ -6,7 +6,7 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
 export function Field({ label, error, id, ...props }: Props) {
   const fieldId = id || label.toLowerCase().replace(/\s+/g, "-");
   return (
-    <label className="field" htmlFor={fieldId}>
+    <label className="field uiverse-field" htmlFor={fieldId}>
       <span>{label}</span>
       <input id={fieldId} {...props} />
       {error && <small role="alert">{error}</small>}

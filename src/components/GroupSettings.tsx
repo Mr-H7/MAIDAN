@@ -4,7 +4,10 @@ import type { Group } from "../lib/types";
 import { db } from "../lib/supabase";
 import { ActionButton } from "./ui/ActionButton";
 import { Card } from "./ui/Card";
+import { useApp } from "../context/AppContext";
 export function GroupSettings({ group }: { group: Group }) {
+  const { language } = useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
   const [timezone, setTimezone] = useState(group.timezone);
   const [capacity, setCapacity] = useState(group.capacity);
@@ -26,16 +29,18 @@ export function GroupSettings({ group }: { group: Group }) {
     setBusy(false);
     if (error) setNotice(error.message);
     else {
-      setNotice("Group settings saved.");
+      setNotice(ar ? "حُفظت إعدادات المجموعة." : "Group settings saved.");
       client.invalidateQueries({ queryKey: ["memberships"] });
     }
   };
   return (
     <Card>
-      <h2 className="section-title">Group settings</h2>
+      <h2 className="section-title">
+        {ar ? "إعدادات المجموعة" : "Group settings"}
+      </h2>
       <div className="form-stack">
         <label className="field">
-          Timezone
+          {ar ? "المنطقة الزمنية" : "Timezone"}
           <input
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
@@ -43,7 +48,7 @@ export function GroupSettings({ group }: { group: Group }) {
           />
         </label>
         <label className="field">
-          Friday capacity
+          {ar ? "سعة الجمعة" : "Friday capacity"}
           <input
             type="number"
             min="2"
@@ -53,7 +58,7 @@ export function GroupSettings({ group }: { group: Group }) {
           />
         </label>
         <label className="field">
-          Rating window (hours)
+          {ar ? "مدة التقييم (بالساعات)" : "Rating window (hours)"}
           <input
             type="number"
             min="1"
@@ -68,7 +73,9 @@ export function GroupSettings({ group }: { group: Group }) {
             checked={hatTrick}
             onChange={(e) => setHatTrick(e.target.checked)}
           />{" "}
-          Award a green card for a hat-trick
+          {ar
+            ? "منح بطاقة خضراء لهاتريك"
+            : "Award a green card for a hat-trick"}
         </label>
         <label className="row-start">
           <input
@@ -76,7 +83,9 @@ export function GroupSettings({ group }: { group: Group }) {
             checked={redemption}
             onChange={(e) => setRedemption(e.target.checked)}
           />{" "}
-          Allow admin approved green card redemption for a red card
+          {ar
+            ? "السماح للمشرف باستبدال بطاقة خضراء مقابل حمراء"
+            : "Allow admin approved green card redemption for a red card"}
         </label>
         <ActionButton
           disabled={
@@ -89,7 +98,7 @@ export function GroupSettings({ group }: { group: Group }) {
           }
           onClick={save}
         >
-          Save settings
+          {ar ? "حفظ الإعدادات" : "Save settings"}
         </ActionButton>
         {notice && (
           <div className="notice" role="status">

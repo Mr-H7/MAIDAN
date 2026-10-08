@@ -8,6 +8,19 @@ import { Card } from "../components/ui/Card";
 import type { Football } from "../lib/types";
 function Session({ session }: { session: Football }) {
   const { user, membership, language } = useApp();
+  const ar = language === "ar";
+  const stateLabel: Record<string, string> = ar
+    ? {
+        open: "مفتوح",
+        locked: "مغلق",
+        completed: "مكتمل",
+        pre_registered: "مسجل مبدئيًا",
+        confirmed: "مؤكد",
+        declined: "اعتذر",
+        pending: "قيد الانتظار",
+        waitlisted: "قائمة الانتظار",
+      }
+    : {};
   const client = useQueryClient();
   const [error, setError] = useState("");
   const booking = useQuery({
@@ -47,19 +60,26 @@ function Session({ session }: { session: Football }) {
           <strong>{date}</strong>
         </div>
         <span className={`pill ${session.status === "locked" ? "gray" : ""}`}>
-          {session.status}
+          {stateLabel[session.status] || session.status}
         </span>
       </div>
       <p className="muted">
         <MapPin size={15} style={{ display: "inline" }} />{" "}
-        {session.venue || "Venue to be announced"}
+        {session.venue ||
+          (ar ? "سيُعلن المكان لاحقًا" : "Venue to be announced")}
       </p>
       <div className="row">
         <span className="row-start">
-          <Users size={17} /> {confirmed.length}/{session.capacity} confirmed
+          <Users size={17} /> {confirmed.length}/{session.capacity}{" "}
+          {ar ? "مؤكد" : "confirmed"}
         </span>
         <span className="pill blue">
-          {booking.data?.status?.replace("_", " ") || "Not registered"}
+          {booking.data?.status
+            ? stateLabel[booking.data.status] ||
+              booking.data.status.replace("_", " ")
+            : ar
+              ? "لم تسجل"
+              : "Not registered"}
         </span>
       </div>
       <hr className="divider" />
@@ -72,7 +92,7 @@ function Session({ session }: { session: Football }) {
           }
           onClick={() => mutate.mutate("confirmed")}
         >
-          Confirm attendance
+          {ar ? "تأكيد الحضور" : "Confirm attendance"}
         </ActionButton>
         <ActionButton
           variant="secondary"
@@ -83,12 +103,13 @@ function Session({ session }: { session: Football }) {
           }
           onClick={() => mutate.mutate("declined")}
         >
-          Decline
+          {ar ? "اعتذار" : "Decline"}
         </ActionButton>
       </div>
       <p className="tiny muted">
-        Maqraa check in creates a pre-registration. Confirm here to join the
-        final roster.
+        {ar
+          ? "حضور المقرأة يسجلك مبدئيًا فقط. أكّد هنا للانضمام إلى القائمة النهائية."
+          : "Maqraa check in creates a pre-registration. Confirm here to join the final roster."}
       </p>
       {error && (
         <div className="notice error" role="alert">
@@ -99,7 +120,8 @@ function Session({ session }: { session: Football }) {
   );
 }
 export function BookingPage() {
-  const { groupId } = useApp();
+  const { groupId, language } = useApp();
+  const ar = language === "ar";
   const sessions = useQuery({
     queryKey: ["football", groupId],
     queryFn: () => getFootball(groupId!),
@@ -108,19 +130,30 @@ export function BookingPage() {
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Match day</span>
-        <h1 className="page-title">Friday booking</h1>
+        <span className="eyebrow">{ar ? "يوم المباراة" : "Match day"}</span>
+        <h1 className="page-title">{ar ? "حجز الجمعة" : "Friday booking"}</h1>
         <p className="muted">
-          Friday · 9:00 PM–11:00 PM by default. Confirm your place before the
-          roster locks.
+          {ar
+            ? "الجمعة · ٩:٠٠–١١:٠٠ مساءً افتراضيًا. أكّد مكانك قبل إغلاق القائمة."
+            : "Friday · 9:00 PM–11:00 PM by default. Confirm your place before the roster locks."}
         </p>
       </div>
-      {sessions.isLoading && <div role="status">Loading sessions…</div>}
+      {sessions.isLoading && (
+        <div role="status">
+          {ar ? "جارٍ تحميل الجلسات…" : "Loading sessions…"}
+        </div>
+      )}
       {sessions.isError && (
-        <div className="notice error">Could not load Friday sessions.</div>
+        <div className="notice error">
+          {ar ? "تعذّر تحميل جلسات الجمعة." : "Could not load Friday sessions."}
+        </div>
       )}
       {sessions.data?.length === 0 && (
-        <Card className="empty">No Friday sessions scheduled yet.</Card>
+        <Card className="empty">
+          {ar
+            ? "لا توجد جلسات جمعة مجدولة بعد."
+            : "No Friday sessions scheduled yet."}
+        </Card>
       )}
       {sessions.data?.map((x) => (
         <Session key={x.id} session={x} />

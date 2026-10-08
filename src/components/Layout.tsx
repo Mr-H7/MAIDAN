@@ -43,7 +43,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {memberships.length > 1 && (
               <select
                 className="select desktop-only"
-                aria-label="Group"
+                aria-label={language === "ar" ? "المجموعة" : "Group"}
                 value={membership?.group_id || ""}
                 onChange={(e) => selectGroup(e.target.value)}
               >
@@ -58,26 +58,34 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavLink
                 to="/admin"
                 className="icon-button"
-                aria-label="Admin dashboard"
+                aria-label={
+                  language === "ar" ? "لوحة الإدارة" : "Admin dashboard"
+                }
               >
                 <Shield size={20} />
               </NavLink>
             )}
             <button
               className="icon-button"
-              aria-label="Switch language"
+              aria-label={
+                language === "ar" ? "Switch to English" : "التبديل إلى العربية"
+              }
               onClick={toggleLanguage}
             >
               <Languages size={20} />
             </button>
             <button
               className="icon-button desktop-only"
-              aria-label="Sign out"
+              aria-label={language === "ar" ? "تسجيل الخروج" : "Sign out"}
               onClick={() => db().auth.signOut()}
             >
               <LogOut size={20} />
             </button>
-            <NavLink to="/profile" className="avatar" aria-label="Profile">
+            <NavLink
+              to="/profile"
+              className="avatar"
+              aria-label={language === "ar" ? "الملف الشخصي" : "Profile"}
+            >
               {(profile?.full_name || "?")[0].toUpperCase()}
             </NavLink>
           </div>
@@ -86,14 +94,21 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="content" key={location.pathname}>
         {children}
       </main>
-      <nav className="bottom-nav" aria-label="Primary navigation">
+      <nav
+        className="bottom-nav"
+        aria-label={language === "ar" ? "التنقل الرئيسي" : "Primary navigation"}
+      >
         {items.map(({ to, en, ar, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === "/"}>
             {({ isActive }) => (
               <>
                 <Icon aria-hidden="true" />
                 <span>{language === "ar" ? ar : en}</span>
-                {isActive && <span className="sr-only">current</span>}
+                {isActive && (
+                  <span className="sr-only">
+                    {language === "ar" ? "الحالية" : "current"}
+                  </span>
+                )}
               </>
             )}
           </NavLink>

@@ -31,10 +31,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.getItem("maidan_group"),
   );
   const [language, setLanguage] = useState<"en" | "ar">(
-    localStorage.getItem("maidan_lang") === "ar" ? "ar" : "en",
+    localStorage.getItem("maidan_lang") === "en" ? "en" : "ar",
   );
   useEffect(() => {
     document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
     document.body.dir = language === "ar" ? "rtl" : "ltr";
     localStorage.setItem("maidan_lang", language);
   }, [language]);

@@ -58,26 +58,40 @@ export function HomePage() {
       <div className="hero-card">
         <span className="pill">
           {nextFootball?.status === "locked"
-            ? "Roster locked"
-            : "Friday football"}
+            ? language === "ar"
+              ? "القائمة مغلقة"
+              : "Roster locked"
+            : language === "ar"
+              ? "كرة الجمعة"
+              : "Friday football"}
         </span>
         <h2>
           {nextFootball
-            ? "Next Friday session"
-            : "Your next match day starts here"}
+            ? language === "ar"
+              ? "موعد الجمعة القادم"
+              : "Next Friday session"
+            : language === "ar"
+              ? "يبدأ يوم مباراتك القادم هنا"
+              : "Your next match day starts here"}
         </h2>
         <p>
           {nextFootball
             ? date(nextFootball.starts_at, locale, timeZone)
-            : "Ask a group admin to schedule this week’s sessions."}
+            : language === "ar"
+              ? "اطلب من مشرف المجموعة جدولة جلسات هذا الأسبوع."
+              : "Ask a group admin to schedule this week’s sessions."}
         </p>
         <div className="actions">
           <Link to="/booking">
-            <ActionButton arrow>View booking</ActionButton>
+            <ActionButton arrow>
+              {language === "ar" ? "عرض الحجز" : "View booking"}
+            </ActionButton>
           </Link>
           {isAdmin && (
             <Link to="/admin">
-              <ActionButton variant="quiet">Manage</ActionButton>
+              <ActionButton variant="quiet">
+                {language === "ar" ? "إدارة" : "Manage"}
+              </ActionButton>
             </Link>
           )}
         </div>
@@ -85,13 +99,16 @@ export function HomePage() {
       <div className="grid-two">
         <section>
           <div className="row">
-            <h2 className="section-title">Maqraa</h2>
+            <h2 className="section-title">
+              {language === "ar" ? "المقرأة" : "Maqraa"}
+            </h2>
             <Link
               to="/maqraa"
               className="tiny"
               style={{ color: "var(--blue)" }}
             >
-              See all <ArrowUpRight size={13} />
+              {language === "ar" ? "عرض الكل" : "See all"}{" "}
+              <ArrowUpRight size={13} />
             </Link>
           </div>
           <Card>
@@ -108,23 +125,32 @@ export function HomePage() {
                 </div>
                 <h3>{nextMaqraa.title}</h3>
                 <Link to="/maqraa">
-                  <ActionButton variant="secondary">Check in</ActionButton>
+                  <ActionButton variant="secondary">
+                    {language === "ar" ? "تسجيل الحضور" : "Check in"}
+                  </ActionButton>
                 </Link>
               </>
             ) : (
-              <div className="empty">No Maqraa scheduled.</div>
+              <div className="empty">
+                {language === "ar"
+                  ? "لا توجد مقرأة مجدولة."
+                  : "No Maqraa scheduled."}
+              </div>
             )}
           </Card>
         </section>
         <section>
           <div className="row">
-            <h2 className="section-title">Friday booking</h2>
+            <h2 className="section-title">
+              {language === "ar" ? "حجز الجمعة" : "Friday booking"}
+            </h2>
             <Link
               to="/booking"
               className="tiny"
               style={{ color: "var(--blue)" }}
             >
-              See all <ArrowUpRight size={13} />
+              {language === "ar" ? "عرض الكل" : "See all"}{" "}
+              <ArrowUpRight size={13} />
             </Link>
           </div>
           <Card>
@@ -138,23 +164,34 @@ export function HomePage() {
                 </div>
                 <p className="muted">
                   <MapPin size={14} style={{ display: "inline" }} />{" "}
-                  {nextFootball.venue || "Venue to be announced"}
+                  {nextFootball.venue ||
+                    (language === "ar"
+                      ? "سيُعلن المكان لاحقًا"
+                      : "Venue to be announced")}
                 </p>
                 <span className="pill blue">
-                  Capacity {nextFootball.capacity}
+                  {language === "ar" ? "السعة" : "Capacity"}{" "}
+                  {nextFootball.capacity}
                 </span>
               </>
             ) : (
-              <div className="empty">No Friday session scheduled.</div>
+              <div className="empty">
+                {language === "ar"
+                  ? "لا توجد جلسة جمعة مجدولة."
+                  : "No Friday session scheduled."}
+              </div>
             )}
           </Card>
         </section>
       </div>
       <section>
         <div className="row">
-          <h2 className="section-title">My teams</h2>
+          <h2 className="section-title">
+            {language === "ar" ? "فرقي" : "My teams"}
+          </h2>
           <Link to="/teams" className="tiny" style={{ color: "var(--blue)" }}>
-            See all <ArrowUpRight size={13} />
+            {language === "ar" ? "عرض الكل" : "See all"}{" "}
+            <ArrowUpRight size={13} />
           </Link>
         </div>
         <div className="grid-two">
@@ -171,14 +208,18 @@ export function HomePage() {
             ))}
           {!teams.data?.some((x) => x.status === "published") && (
             <Card className="empty">
-              Team assignments will appear after the roster is locked.
+              {language === "ar"
+                ? "ستظهر الفرق بعد إغلاق قائمة اللاعبين."
+                : "Team assignments will appear after the roster is locked."}
             </Card>
           )}
         </div>
       </section>
       {(football.isError || maqraa.isError) && (
         <div className="notice error">
-          Could not load the schedule. Check your connection.
+          {language === "ar"
+            ? "تعذّر تحميل الجدول. تحقق من اتصالك."
+            : "Could not load the schedule. Check your connection."}
         </div>
       )}
     </div>

@@ -37,6 +37,8 @@ function clock(match: Match, now: number) {
     .padStart(2, "0")}`;
 }
 function MatchCard({ match }: { match: Match }) {
+  const { language } = useApp();
+  const ar = language === "ar";
   const events = useQuery({
     queryKey: ["events", match.id],
     queryFn: () => getEvents(match.id),
@@ -46,27 +48,35 @@ function MatchCard({ match }: { match: Match }) {
       <Card>
         <div className="row">
           <span className={`pill ${match.status === "live" ? "red" : "gray"}`}>
-            {match.status}
+            {ar
+              ? {
+                  scheduled: "مجدولة",
+                  live: "جارية",
+                  paused: "متوقفة",
+                  completed: "مكتملة",
+                }[match.status]
+              : match.status}
           </span>
           <span className="muted tiny">
-            Match {match.order_no} · {Math.round(match.duration_seconds / 60)}{" "}
-            min
+            {ar ? "المباراة" : "Match"} {match.order_no} ·{" "}
+            {Math.round(match.duration_seconds / 60)} {ar ? "دقيقة" : "min"}
           </span>
         </div>
         <div className="score-line" style={{ marginTop: 14 }}>
-          <strong>{match.home_team?.name || "Home"}</strong>
+          <strong>{match.home_team?.name || (ar ? "الأول" : "Home")}</strong>
           <span>
             {score(events.data || [], match.home_team_id)} :{" "}
             {score(events.data || [], match.away_team_id)}
           </span>
-          <strong>{match.away_team?.name || "Away"}</strong>
+          <strong>{match.away_team?.name || (ar ? "الثاني" : "Away")}</strong>
         </div>
       </Card>
     </Link>
   );
 }
 export function MatchesPage() {
-  const { groupId } = useApp();
+  const { groupId, language } = useApp();
+  const ar = language === "ar";
   const [selectedSession, setSelectedSession] = useState("");
   const sessions = useQuery({
     queryKey: ["football", groupId],
@@ -85,21 +95,31 @@ export function MatchesPage() {
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Fixtures</span>
-        <h1 className="page-title">Match schedule</h1>
+        <span className="eyebrow">{ar ? "المواجهات" : "Fixtures"}</span>
+        <h1 className="page-title">
+          {ar ? "جدول المباريات" : "Match schedule"}
+        </h1>
         <p className="muted">
-          Live scores come from recorded, authorized match events.
+          {ar
+            ? "تُحسب النتائج المباشرة من أحداث المباراة المسجلة والمصرح بها."
+            : "Live scores come from recorded, authorized match events."}
         </p>
       </div>
-      {sessions.isLoading && <div role="status">Loading sessions…</div>}
+      {sessions.isLoading && (
+        <div role="status">
+          {ar ? "جارٍ تحميل الجلسات…" : "Loading sessions…"}
+        </div>
+      )}
       {sessions.isError && (
         <div className="notice error" role="alert">
-          Could not load football sessions.
+          {ar
+            ? "تعذّر تحميل جلسات كرة القدم."
+            : "Could not load football sessions."}
         </div>
       )}
       {(sessions.data?.length || 0) > 1 && (
         <label className="field">
-          Football session
+          {ar ? "جلسة كرة القدم" : "Football session"}
           <select
             className="select"
             value={active?.id || ""}
@@ -107,21 +127,31 @@ export function MatchesPage() {
           >
             {sessions.data?.map((session) => (
               <option key={session.id} value={session.id}>
-                {new Date(session.starts_at).toLocaleDateString()} ·{" "}
-                {session.status}
+                {new Date(session.starts_at).toLocaleDateString(
+                  ar ? "ar" : "en",
+                )}{" "}
+                · {session.status}
               </option>
             ))}
           </select>
         </label>
       )}
-      {matches.isLoading && <div role="status">Loading matches…</div>}
+      {matches.isLoading && (
+        <div role="status">
+          {ar ? "جارٍ تحميل المباريات…" : "Loading matches…"}
+        </div>
+      )}
       {matches.isError && (
         <div className="notice error" role="alert">
-          Could not load matches.
+          {ar ? "تعذّر تحميل المباريات." : "Could not load matches."}
         </div>
       )}
       {matches.data?.length === 0 && (
-        <Card className="empty">No matches scheduled for this session.</Card>
+        <Card className="empty">
+          {ar
+            ? "لا توجد مباريات مجدولة لهذه الجلسة."
+            : "No matches scheduled for this session."}
+        </Card>
       )}
       {matches.data?.map((m) => (
         <MatchCard key={m.id} match={m} />
@@ -131,7 +161,8 @@ export function MatchesPage() {
 }
 export function MatchPage() {
   const { id } = useParams();
-  const { user, isAdmin } = useApp();
+  const { user, isAdmin, language } = useApp();
+  const ar = language === "ar";
   const client = useQueryClient();
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
@@ -233,12 +264,22 @@ export function MatchPage() {
     };
   }, [match?.id, client]);
   if (!match)
-    return <Card className="empty">Loading match or match not found.</Card>;
-  const home = match.home_team?.name || "Home",
-    away = match.away_team?.name || "Away";
+    return (
+      <Card className="empty">
+        {ar
+          ? "جارٍ تحميل المباراة أو لم تُعثر عليها."
+          : "Loading match or match not found."}
+      </Card>
+    );
+  const home = match.home_team?.name || (ar ? "الأول" : "Home"),
+    away = match.away_team?.name || (ar ? "الثاني" : "Away");
   const eligiblePlayers =
     players.data?.filter((p) => p.team_id === teamId) || [];
-  const myTeam = players.data?.find((p) => p.user_id === user?.id)?.team_id;
+  const myTeam = players.data?.find(
+    (p) =>
+      p.user_id === user?.id &&
+      [match.home_team_id, match.away_team_id].includes(p.team_id),
+  )?.team_id;
   const rateable =
     players.data?.filter(
       (p) => p.team_id === myTeam && p.user_id !== user?.id,
@@ -246,7 +287,9 @@ export function MatchPage() {
   return (
     <div className="page-stack">
       <div>
-        <span className="eyebrow">Live match center</span>
+        <span className="eyebrow">
+          {ar ? "مركز المباراة المباشر" : "Live match center"}
+        </span>
         <h1 className="page-title">
           {home} vs {away}
         </h1>
@@ -254,7 +297,14 @@ export function MatchPage() {
       <div className="scoreboard">
         <div className="row" style={{ justifyContent: "center" }}>
           <span className={`pill ${match.status === "live" ? "red" : "gray"}`}>
-            {match.status}
+            {ar
+              ? {
+                  scheduled: "مجدولة",
+                  live: "جارية",
+                  paused: "متوقفة",
+                  completed: "مكتملة",
+                }[match.status]
+              : match.status}
           </span>
           <span className="pill gray">{clock(match, now)}</span>
         </div>
@@ -269,7 +319,9 @@ export function MatchPage() {
       </div>
       {canRef && (
         <Card>
-          <h2 className="section-title">Referee console</h2>
+          <h2 className="section-title">
+            {ar ? "لوحة الحكم" : "Referee console"}
+          </h2>
           <div className="actions">
             {match.status === "scheduled" && (
               <ActionButton
@@ -277,7 +329,7 @@ export function MatchPage() {
                   action.mutate(() => setMatchState(match.id, "live"))
                 }
               >
-                <Play size={16} /> Start
+                <Play size={16} /> {ar ? "ابدأ" : "Start"}
               </ActionButton>
             )}
             {match.status === "live" && (
@@ -287,7 +339,7 @@ export function MatchPage() {
                   action.mutate(() => setMatchState(match.id, "paused"))
                 }
               >
-                <Pause size={16} /> Pause
+                <Pause size={16} /> {ar ? "إيقاف مؤقت" : "Pause"}
               </ActionButton>
             )}
             {match.status === "paused" && (
@@ -296,7 +348,7 @@ export function MatchPage() {
                   action.mutate(() => setMatchState(match.id, "live"))
                 }
               >
-                <Play size={16} /> Resume
+                <Play size={16} /> {ar ? "استئناف" : "Resume"}
               </ActionButton>
             )}
             {["live", "paused"].includes(match.status) && (
@@ -306,14 +358,14 @@ export function MatchPage() {
                   action.mutate(() => setMatchState(match.id, "completed"))
                 }
               >
-                <Square size={16} /> Complete
+                <Square size={16} /> {ar ? "إنهاء" : "Complete"}
               </ActionButton>
             )}
           </div>
           <hr className="divider" />
           <div className="form-stack">
             <label className="field">
-              Team
+              {ar ? "الفريق" : "Team"}
               <select
                 className="select"
                 value={teamId}
@@ -322,19 +374,21 @@ export function MatchPage() {
                   setPlayerId("");
                 }}
               >
-                <option value="">Select team</option>
+                <option value="">{ar ? "اختر الفريق" : "Select team"}</option>
                 <option value={match.home_team_id}>{home}</option>
                 <option value={match.away_team_id}>{away}</option>
               </select>
             </label>
             <label className="field">
-              Player
+              {ar ? "اللاعب" : "Player"}
               <select
                 className="select"
                 value={playerId}
                 onChange={(e) => setPlayerId(e.target.value)}
               >
-                <option value="">Select actual player</option>
+                <option value="">
+                  {ar ? "اختر اللاعب الفعلي" : "Select actual player"}
+                </option>
                 {eligiblePlayers.map((p) => (
                   <option key={p.user_id} value={p.user_id}>
                     {p.profile?.full_name || p.user_id}
@@ -343,7 +397,7 @@ export function MatchPage() {
               </select>
             </label>
             <label className="field">
-              Event
+              {ar ? "الحدث" : "Event"}
               <select
                 className="select"
                 value={type}
@@ -351,10 +405,14 @@ export function MatchPage() {
                   setType(e.target.value as MatchEvent["event_type"])
                 }
               >
-                <option value="goal">Goal</option>
-                <option value="yellow">Yellow card</option>
-                <option value="red">Red card</option>
-                <option value="green">Green card</option>
+                <option value="goal">{ar ? "هدف" : "Goal"}</option>
+                <option value="yellow">
+                  {ar ? "بطاقة صفراء" : "Yellow card"}
+                </option>
+                <option value="red">{ar ? "بطاقة حمراء" : "Red card"}</option>
+                <option value="green">
+                  {ar ? "بطاقة خضراء" : "Green card"}
+                </option>
               </select>
             </label>
             <ActionButton
@@ -368,18 +426,22 @@ export function MatchPage() {
                 action.mutate(() => addEvent(match.id, teamId, playerId, type))
               }
             >
-              Record event
+              {ar ? "تسجيل الحدث" : "Record event"}
             </ActionButton>
           </div>
         </Card>
       )}
       {isAdmin && !canRef && (
         <div className="notice">
-          Only assigned match officials can operate this match.
+          {ar
+            ? "لا يمكن إدارة المباراة إلا للحكام المعينين."
+            : "Only assigned match officials can operate this match."}
         </div>
       )}
       <Card>
-        <h2 className="section-title">Event timeline</h2>
+        <h2 className="section-title">
+          {ar ? "تسلسل الأحداث" : "Event timeline"}
+        </h2>
         <div className="timeline">
           {events.data
             ?.filter((e) => !e.reversed_at)
@@ -393,17 +455,26 @@ export function MatchPage() {
                       ) : (
                         <Flag size={14} style={{ display: "inline" }} />
                       )}{" "}
-                      {e.event_type.toUpperCase()}
+                      {ar
+                        ? {
+                            goal: "هدف",
+                            yellow: "بطاقة صفراء",
+                            red: "بطاقة حمراء",
+                            green: "بطاقة خضراء",
+                          }[e.event_type]
+                        : e.event_type.toUpperCase()}
                     </strong>
                     <div className="muted tiny">
-                      {e.profile?.full_name || "Player"} ·{" "}
-                      {new Date(e.occurred_at).toLocaleTimeString()}
+                      {e.profile?.full_name || (ar ? "لاعب" : "Player")} ·{" "}
+                      {new Date(e.occurred_at).toLocaleTimeString(
+                        ar ? "ar" : "en",
+                      )}
                     </div>
                   </div>
                   {canRef && (
                     <button
                       className="icon-button"
-                      aria-label="Reverse event"
+                      aria-label={ar ? "إلغاء الحدث" : "Reverse event"}
                       onClick={() => action.mutate(() => reverseEvent(e.id))}
                     >
                       <Undo2 size={17} />
@@ -413,22 +484,28 @@ export function MatchPage() {
               </div>
             ))}
           {events.data?.filter((e) => !e.reversed_at).length === 0 && (
-            <p className="muted">No events recorded.</p>
+            <p className="muted">
+              {ar ? "لم تُسجل أحداث بعد." : "No events recorded."}
+            </p>
           )}
         </div>
       </Card>
       {match.status === "completed" && myTeam && (
         <Card>
-          <h2 className="section-title">Rate a teammate</h2>
+          <h2 className="section-title">
+            {ar ? "قيّم زميلك" : "Rate a teammate"}
+          </h2>
           <div className="form-stack">
             <label className="field">
-              Player
+              {ar ? "اللاعب" : "Player"}
               <select
                 className="select"
                 value={ratee}
                 onChange={(e) => setRatee(e.target.value)}
               >
-                <option value="">Select teammate</option>
+                <option value="">
+                  {ar ? "اختر زميلًا" : "Select teammate"}
+                </option>
                 {rateable.map((p) => (
                   <option key={p.user_id} value={p.user_id}>
                     {p.profile?.full_name}
@@ -438,7 +515,14 @@ export function MatchPage() {
             </label>
             {(["performance", "teamwork", "effort"] as const).map((key) => (
               <label className="field" key={key}>
-                {key} · {scores[key]}/10
+                {ar
+                  ? {
+                      performance: "الأداء",
+                      teamwork: "العمل الجماعي",
+                      effort: "الجهد",
+                    }[key]
+                  : key}{" "}
+                · {scores[key]}/10
                 <input
                   type="range"
                   min="1"
@@ -454,7 +538,7 @@ export function MatchPage() {
               disabled={!ratee || rating.isPending}
               onClick={() => rating.mutate()}
             >
-              Submit evaluation
+              {ar ? "إرسال التقييم" : "Submit evaluation"}
             </ActionButton>
           </div>
         </Card>
