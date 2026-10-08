@@ -10,6 +10,7 @@ import {
   normalizeInviteCode,
   rememberInviteFromLocation,
 } from "../lib/invites";
+import { signupFailureMessage } from "../lib/authError";
 import { useApp } from "../context/AppContext";
 import { ActionButton } from "../components/ui/ActionButton";
 import { Card } from "../components/ui/Card";
@@ -85,7 +86,13 @@ export function AuthPage({ onboarding = false }: { onboarding?: boolean }) {
         );
       }
     } catch (e) {
-      setError((e as Error).message);
+      const failure = e as { message?: string; status?: number; code?: string };
+      setError(
+        mode === "signup"
+          ? signupFailureMessage(failure, language)
+          : failure.message ||
+              (ar ? "تعذر تسجيل الدخول." : "Could not sign in."),
+      );
     }
   });
   const joinGroup = async () => {
