@@ -36,6 +36,14 @@ export function FixtureOrder({
     }
   };
   if (!matches.length) return null;
+  if (matches.some((match) => match.match_type !== "main_main"))
+    return (
+      <div className="notice">
+        {ar
+          ? "يُعتمد موضع مباريات الاحتياط عند إنشائها. لا يمكن إعادة ترتيب جدول مختلط دون مراجعة أولوية المباريات الأساسية."
+          : "Reserve positions are approved when created. Mixed schedules cannot be reordered without reviewing main-fixture priority."}
+      </div>
+    );
   return (
     <div className="card">
       <h3 className="section-title">

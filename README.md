@@ -13,7 +13,7 @@ Implementation sequence: reusable branded layout and controls; group-aware Auth 
 ## Run locally
 
 1. `npm ci`
-2. Start a local Supabase stack with Docker installed: `npx supabase start`, then `npx supabase db reset`. The migration and seed run on reset.
+2. Start a local Supabase stack with Docker installed: `npx supabase start`. On this development branch, **do not run `db reset` or apply the v1.1 migration until its impact review is explicitly approved**. After approval, use an isolated local database for migration and workflow tests.
 3. Copy `.env.example` to `.env` and use the local Supabase URL and publishable key printed by the CLI. Never put a secret/service-role key in a `VITE_` variable.
 4. `npm run dev`
 
@@ -26,13 +26,17 @@ The MAIDAN Supabase project is `rynofloqzddbdtqtyboj`. The initial migration has
 ## Verification status
 
 - `npm run build`: passes.
-- `npm test`: four deterministic team-balancing and rating-priority tests pass.
+- `npm test`: the current development-branch suite passes 31 tests when `TEMP` and `TMP` point to the ignored workspace `tmp` directory.
 - `supabase/tests/security.sql` contains a local seed-based SQL check; the live signed-in API tests are recorded in `SECURITY_TEST_RESULTS.md`.
-- Both migrations are applied on the MAIDAN Supabase project. The live schema has 18 public tables, all with RLS enabled.
+- Earlier production migrations are applied on the MAIDAN Supabase project. The v1.1 reserve migration is a local draft and has **not** been applied. The prior live inspection found 18 public tables with RLS enabled.
 - Three real Auth accounts passed 52 signed-in API checks, then QR expiry and five follow-up checks passed. Group isolation, permission denials, Maqraa attendance, Friday pre-registration, confirmation, and roster locking were exercised.
 - A separate 21-identity disposable Auth run passed 52 live lifecycle and two-browser checks: 20 confirmations, roster lock, 4 × 5 team balance and swap, publishing, fixtures, referee operations, goals/cards/hat-trick reward, ratings, permission denials, and Realtime. See `LIVE_FOOTBALL_TEST_RESULTS.md`. The fixture group and Auth users were removed afterward.
 - Arabic RTL is the first-run default and the main player and admin workflows now have Arabic copy. English LTR remains selectable. Auth viewport checks passed at 320–1280 px. The profile statistics card now has component tests for scoped values and error handling; its live signed-in UI still needs a preview smoke test. See `DEPLOYMENT_READINESS.md`.
 - The app is deployed publicly. The user manually verified production email confirmation, login, logout, and session persistence; see `PRODUCTION_ACCEPTANCE.md`. Real players must not be invited until group onboarding, a live joined-player profile, and authenticated match Realtime receive current production acceptance. The dedicated test key was revoked; Security Advisor findings remain.
+
+## v1.1 reserve-match development
+
+The approved rules are in `MAIDAN_V1_1_SPEC.md`. The isolated development branch adds reserve/walk-in identities, typed 600/480-second fixtures, Admin approval controls, referee and event attribution, and separate matchday statistics. The SQL draft and its exact impact/approval gate are in `RESERVE_MIGRATION_REVIEW.md`; executed and pending checks are in `RESERVE_TEST_RESULTS.md`. No v1.1 migration has been applied and no v1.1 build has been deployed.
 
 ## Critical verification checklist for a connected project
 

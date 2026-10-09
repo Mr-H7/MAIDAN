@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Circle, Flag, Play, Pause, Square, Undo2 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import {
   addEvent,
+  addWalkInEvent,
   getBookings,
   getEvents,
   getFootball,
   getMatch,
+  getMatchdayReport,
   getMatches,
   getTeamPlayers,
+  getReserveTeamPlayers,
   getTeams,
   ratePlayer,
   reverseEvent,
@@ -22,23 +25,33 @@ import { Card } from "../components/ui/Card";
 import type { Match, MatchEvent } from "../lib/types";
 import { FridayGateCard } from "../components/FridayGateCard";
 import { matchControlRequirements } from "../lib/fridayGate";
+import { displayClock, elapsedSeconds } from "../lib/reserveRules";
 function score(events: MatchEvent[], teamId: string) {
   return events.filter(
     (e) => e.team_id === teamId && e.event_type === "goal" && !e.reversed_at,
   ).length;
 }
-function clock(match: Match, now: number) {
-  const elapsed =
-    match.elapsed_seconds +
-    (match.status === "live" && match.started_at
-      ? Math.max(0, (now - new Date(match.started_at).getTime()) / 1000)
-      : 0);
-  const remaining = Math.max(0, match.duration_seconds - elapsed);
-  return `${Math.floor(remaining / 60)
-    .toString()
-    .padStart(2, "0")}:${Math.floor(remaining % 60)
-    .toString()
-    .padStart(2, "0")}`;
+const typeLabel = (type: Match["match_type"], ar: boolean) =>
+  ({
+    main_main: ar ? "أساسي ضد أساسي" : "Main vs Main",
+    reserve_reserve: ar ? "احتياط ضد احتياط" : "Reserve vs Reserve",
+    reserve_main: ar ? "احتياط ضد أساسي" : "Reserve vs Main",
+  })[type];
+function playFinalWhistle() {
+  const AudioContextClass = window.AudioContext;
+  if (!AudioContextClass) return;
+  const context = new AudioContextClass();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.value = 920;
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.8);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.82);
+  oscillator.onended = () => void context.close();
 }
 function MatchCard({ match }: { match: Match }) {
   const { language } = useApp();
@@ -62,8 +75,9 @@ function MatchCard({ match }: { match: Match }) {
               : match.status}
           </span>
           <span className="muted tiny">
-            {ar ? "المباراة" : "Match"} {match.order_no} ·{" "}
-            {Math.round(match.duration_seconds / 60)} {ar ? "دقيقة" : "min"}
+            {typeLabel(match.match_type, ar)} · {ar ? "المباراة" : "Match"}{" "}
+            {match.order_no} · {Math.round(match.duration_seconds / 60)}{" "}
+            {ar ? "دقيقة" : "min"}
           </span>
         </div>
         <div className="score-line" style={{ marginTop: 14 }}>
@@ -80,6 +94,7 @@ function MatchCard({ match }: { match: Match }) {
 }
 export function MatchesPage() {
   const { groupId, language } = useApp();
+  const queryClient = useQueryClient();
   const ar = language === "ar";
   const [selectedSession, setSelectedSession] = useState("");
   const sessions = useQuery({
@@ -106,6 +121,47 @@ export function MatchesPage() {
     queryFn: () => getBookings(active!.id),
     enabled: !!active,
   });
+  const report = useQuery({
+    queryKey: ["matchdayReport", active?.id],
+    queryFn: () => getMatchdayReport(active!.id),
+    enabled: !!active,
+  });
+  useEffect(() => {
+    if (!active || !groupId) return;
+    const channel = db()
+      .channel(`fixtures-${active.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "match_events",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["matchdayReport", active.id],
+          });
+          queryClient.invalidateQueries({ queryKey: ["events"] });
+          queryClient.invalidateQueries({ queryKey: ["matches", active.id] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "matches",
+          filter: `session_id=eq.${active.id}`,
+        },
+        () =>
+          queryClient.invalidateQueries({ queryKey: ["matches", active.id] }),
+      )
+      .subscribe();
+    return () => {
+      void db().removeChannel(channel);
+    };
+  }, [active?.id, groupId, queryClient]);
   return (
     <div className="page-stack">
       <div>
@@ -171,17 +227,49 @@ export function MatchesPage() {
               confirmedCount:
                 bookings.data?.filter((row) => row.status === "confirmed")
                   .length || 0,
-              teamCount: teams.data?.length || 0,
+              teamCount:
+                teams.data?.filter((team) => team.kind === "main").length || 0,
               publishedTeamCount:
-                teams.data?.filter((team) => team.status === "published")
-                  .length || 0,
+                teams.data?.filter(
+                  (team) => team.kind === "main" && team.status === "published",
+                ).length || 0,
               matchCount: 0,
             }}
-        />
-      )}
+          />
+        )}
       {matches.data?.map((m) => (
         <MatchCard key={m.id} match={m} />
       ))}
+      {report.data && report.data.length > 0 && (
+        <Card>
+          <h2 className="section-title">
+            {ar ? "إحصاءات يوم المباراة" : "Matchday statistics"}
+          </h2>
+          <div className="list">
+            {report.data.map((player) => (
+              <div className="list-row" key={player.id}>
+                <strong>{player.name}</strong>
+                <small>
+                  {ar ? "الأهداف" : "Goals"}: {player.combined.goals} ·{" "}
+                  {ar ? "أساسي" : "Standard"} {player.standard.goals} ·{" "}
+                  {ar ? "احتياط" : "Reserve"} {player.reserve.goals}
+                  <br />
+                  {ar ? "البطاقات (ص/ح/خ)" : "Cards (Y/R/G)"}:{" "}
+                  {player.combined.yellow}/{player.combined.red}/
+                  {player.combined.green}
+                </small>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      {report.isError && (
+        <div className="notice error" role="alert">
+          {ar
+            ? "تعذّر تحميل إحصاءات يوم المباراة."
+            : "Could not load matchday statistics."}
+        </div>
+      )}
     </div>
   );
 }
@@ -191,6 +279,8 @@ export function MatchPage() {
   const ar = language === "ar";
   const client = useQueryClient();
   const [now, setNow] = useState(Date.now());
+  const previousElapsed = useRef<number | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [error, setError] = useState("");
   const [teamId, setTeamId] = useState("");
   const [playerId, setPlayerId] = useState("");
@@ -204,6 +294,9 @@ export function MatchPage() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    previousElapsed.current = null;
+  }, [id]);
   const matchQuery = useQuery({
     queryKey: ["match", id],
     queryFn: () => getMatch(id!),
@@ -220,6 +313,11 @@ export function MatchPage() {
     queryFn: () => getTeamPlayers(match!.session_id),
     enabled: !!match,
   });
+  const reservePlayers = useQuery({
+    queryKey: ["reserveTeamPlayers", match?.session_id],
+    queryFn: () => getReserveTeamPlayers(match!.session_id),
+    enabled: !!match && match.match_type !== "main_main",
+  });
   const officials = useQuery({
     queryKey: ["officials", id],
     queryFn: async () => {
@@ -232,14 +330,59 @@ export function MatchPage() {
     },
     enabled: !!id,
   });
+  const participants = [
+    ...(players.data || []).map((p) => ({
+      teamId: p.team_id,
+      id: p.user_id,
+      userId: p.user_id,
+      guest: false,
+      name: p.profile?.full_name || p.user_id,
+    })),
+    ...(reservePlayers.data || []).map((p) => ({
+      teamId: p.team_id,
+      id: p.reserve_player?.member_user_id || p.reserve_player_id,
+      userId: p.reserve_player?.member_user_id || null,
+      guest: !p.reserve_player?.member_user_id,
+      name: p.reserve_player?.full_name || p.reserve_player_id,
+    })),
+  ];
+  const participating = participants.some(
+    (p) =>
+      p.userId === user?.id &&
+      !!user?.id &&
+      [match?.home_team_id, match?.away_team_id].includes(p.teamId),
+  );
   const canRef =
-    !!isAdmin && !!officials.data?.some((o) => o.user_id === user?.id);
+    !!isAdmin &&
+    !participating &&
+    !!officials.data?.some((o) => o.user_id === user?.id);
+  const elapsed = match ? elapsedSeconds(match, now) : 0;
+  useEffect(() => {
+    if (!match) return;
+    if (
+      previousElapsed.current !== null &&
+      previousElapsed.current < match.duration_seconds &&
+      elapsed >= match.duration_seconds &&
+      match.status === "live" &&
+      soundEnabled
+    ) {
+      try {
+        playFinalWhistle();
+      } catch {
+        /* Browser audio permission can block playback. */
+      }
+    }
+    previousElapsed.current = elapsed;
+  }, [match, elapsed, soundEnabled]);
   const action = useMutation({
     mutationFn: async (op: () => Promise<void>) => op(),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["matches"] });
       client.invalidateQueries({ queryKey: ["match", id] });
       client.invalidateQueries({ queryKey: ["events", id] });
+      client.invalidateQueries({
+        queryKey: ["matchdayReport", match?.session_id],
+      });
       setError("");
     },
     onError: (e) => setError(e.message),
@@ -298,17 +441,18 @@ export function MatchPage() {
     );
   const home = match.home_team?.name || (ar ? "الأول" : "Home"),
     away = match.away_team?.name || (ar ? "الثاني" : "Away");
-  const eligiblePlayers =
-    players.data?.filter((p) => p.team_id === teamId) || [];
-  const myTeam = players.data?.find(
+  const eligiblePlayers = participants.filter((p) => p.teamId === teamId);
+  const myTeam = participants.find(
     (p) =>
-      p.user_id === user?.id &&
-      [match.home_team_id, match.away_team_id].includes(p.team_id),
-  )?.team_id;
+      p.userId === user?.id &&
+      [match.home_team_id, match.away_team_id].includes(p.teamId),
+  )?.teamId;
   const rateable =
-    players.data?.filter(
-      (p) => p.team_id === myTeam && p.user_id !== user?.id,
-    ) || [];
+    match.match_type === "main_main"
+      ? players.data?.filter(
+          (p) => p.team_id === myTeam && p.user_id !== user?.id,
+        ) || []
+      : [];
   return (
     <div className="page-stack">
       <div>
@@ -318,6 +462,10 @@ export function MatchPage() {
         <h1 className="page-title">
           {home} vs {away}
         </h1>
+        <span className="pill blue">
+          {typeLabel(match.match_type, ar)} · {match.duration_seconds / 60}{" "}
+          {ar ? "دقائق" : "min"}
+        </span>
       </div>
       <div className="scoreboard">
         <div className="row" style={{ justifyContent: "center" }}>
@@ -331,7 +479,25 @@ export function MatchPage() {
                 }[match.status]
               : match.status}
           </span>
-          <span className="pill gray">{clock(match, now)}</span>
+          <span className="pill gray" role="timer">
+            {displayClock(elapsed, match.duration_seconds)}
+          </span>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            aria-label={
+              soundEnabled
+                ? ar
+                  ? "كتم صفارة النهاية"
+                  : "Mute final whistle"
+                : ar
+                  ? "تشغيل صفارة النهاية"
+                  : "Enable final whistle"
+            }
+          >
+            {soundEnabled ? "♪" : "×"}
+          </button>
         </div>
         <div className="score-line">
           <span>{home}</span>
@@ -415,8 +581,11 @@ export function MatchPage() {
                   {ar ? "اختر اللاعب الفعلي" : "Select actual player"}
                 </option>
                 {eligiblePlayers.map((p) => (
-                  <option key={p.user_id} value={p.user_id}>
-                    {p.profile?.full_name || p.user_id}
+                  <option
+                    key={`${p.guest ? "guest" : "user"}:${p.id}`}
+                    value={`${p.guest ? "guest" : "user"}:${p.id}`}
+                  >
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -441,7 +610,19 @@ export function MatchPage() {
                   }
                   onClick={() =>
                     action.mutate(() =>
-                      addEvent(match.id, teamId, playerId, eventType),
+                      playerId.startsWith("guest:")
+                        ? addWalkInEvent(
+                            match.id,
+                            teamId,
+                            playerId.slice(6),
+                            eventType,
+                          )
+                        : addEvent(
+                            match.id,
+                            teamId,
+                            playerId.slice(5),
+                            eventType,
+                          ),
                     )
                   }
                 >
@@ -508,7 +689,10 @@ export function MatchPage() {
                         : e.event_type.toUpperCase()}
                     </strong>
                     <div className="muted tiny">
-                      {e.profile?.full_name || (ar ? "لاعب" : "Player")} ·{" "}
+                      {e.profile?.full_name ||
+                        e.reserve_player?.full_name ||
+                        (ar ? "لاعب" : "Player")}{" "}
+                      ·{" "}
                       {new Date(e.occurred_at).toLocaleTimeString(
                         ar ? "ar" : "en",
                       )}
@@ -533,59 +717,61 @@ export function MatchPage() {
           )}
         </div>
       </Card>
-      {match.status === "completed" && myTeam && (
-        <Card>
-          <h2 className="section-title">
-            {ar ? "قيّم زميلك" : "Rate a teammate"}
-          </h2>
-          <div className="form-stack">
-            <label className="field">
-              {ar ? "اللاعب" : "Player"}
-              <select
-                className="select"
-                value={ratee}
-                onChange={(e) => setRatee(e.target.value)}
-              >
-                <option value="">
-                  {ar ? "اختر زميلًا" : "Select teammate"}
-                </option>
-                {rateable.map((p) => (
-                  <option key={p.user_id} value={p.user_id}>
-                    {p.profile?.full_name}
+      {match.status === "completed" &&
+        match.match_type === "main_main" &&
+        myTeam && (
+          <Card>
+            <h2 className="section-title">
+              {ar ? "قيّم زميلك" : "Rate a teammate"}
+            </h2>
+            <div className="form-stack">
+              <label className="field">
+                {ar ? "اللاعب" : "Player"}
+                <select
+                  className="select"
+                  value={ratee}
+                  onChange={(e) => setRatee(e.target.value)}
+                >
+                  <option value="">
+                    {ar ? "اختر زميلًا" : "Select teammate"}
                   </option>
-                ))}
-              </select>
-            </label>
-            {(["performance", "teamwork", "effort"] as const).map((key) => (
-              <label className="field" key={key}>
-                {ar
-                  ? {
-                      performance: "الأداء",
-                      teamwork: "العمل الجماعي",
-                      effort: "الجهد",
-                    }[key]
-                  : key}{" "}
-                · {scores[key]}/10
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={scores[key]}
-                  onChange={(e) =>
-                    setScores({ ...scores, [key]: Number(e.target.value) })
-                  }
-                />
+                  {rateable.map((p) => (
+                    <option key={p.user_id} value={p.user_id}>
+                      {p.profile?.full_name}
+                    </option>
+                  ))}
+                </select>
               </label>
-            ))}
-            <ActionButton
-              disabled={!ratee || rating.isPending}
-              onClick={() => rating.mutate()}
-            >
-              {ar ? "إرسال التقييم" : "Submit evaluation"}
-            </ActionButton>
-          </div>
-        </Card>
-      )}
+              {(["performance", "teamwork", "effort"] as const).map((key) => (
+                <label className="field" key={key}>
+                  {ar
+                    ? {
+                        performance: "الأداء",
+                        teamwork: "العمل الجماعي",
+                        effort: "الجهد",
+                      }[key]
+                    : key}{" "}
+                  · {scores[key]}/10
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={scores[key]}
+                    onChange={(e) =>
+                      setScores({ ...scores, [key]: Number(e.target.value) })
+                    }
+                  />
+                </label>
+              ))}
+              <ActionButton
+                disabled={!ratee || rating.isPending}
+                onClick={() => rating.mutate()}
+              >
+                {ar ? "إرسال التقييم" : "Submit evaluation"}
+              </ActionButton>
+            </div>
+          </Card>
+        )}
       {error && (
         <div className="notice error" role="alert">
           {error}

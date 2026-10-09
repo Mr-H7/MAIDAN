@@ -1,4 +1,5 @@
 import { db } from "./supabase";
+import { summarizeMatchEvents, type MatchType } from "./reserveRules";
 import type {
   Booking,
   Football,
@@ -8,6 +9,8 @@ import type {
   MatchEvent,
   Membership,
   Profile,
+  ReservePlayer,
+  ReserveTeamPlayer,
   Team,
   TeamPlayer,
 } from "./types";
@@ -53,7 +56,7 @@ export async function getPlayerStats(groupId: string, userId: string) {
   const [events, summary] = await Promise.all([
     db()
       .from("match_events")
-      .select("event_type")
+      .select("event_type,matches!inner(match_type)")
       .eq("group_id", groupId)
       .eq("player_id", userId)
       .is("reversed_at", null),
@@ -66,14 +69,21 @@ export async function getPlayerStats(groupId: string, userId: string) {
   ]);
   if (events.error) throw events.error;
   if (summary.error) throw summary.error;
+  const totals = summarizeMatchEvents(
+    (events.data || []).map((event) => {
+      const joined = event.matches as unknown as
+        | { match_type: string }
+        | { match_type: string }[];
+      const type = Array.isArray(joined)
+        ? joined[0]?.match_type
+        : joined?.match_type;
+      return { event_type: event.event_type, match_type: type as MatchType };
+    }),
+  );
   return {
-    goals:
-      events.data?.filter((event) => event.event_type === "goal").length || 0,
-    yellow:
-      events.data?.filter((event) => event.event_type === "yellow").length || 0,
-    red: events.data?.filter((event) => event.event_type === "red").length || 0,
-    green:
-      events.data?.filter((event) => event.event_type === "green").length || 0,
+    ...totals.combined,
+    standard: totals.standard,
+    reserve: totals.reserve,
     communityOvr: summary.data?.overall_ovr ?? null,
     ratingCount: summary.data?.rating_count || 0,
   };
@@ -250,6 +260,72 @@ export async function getTeamPlayers(sessionId: string): Promise<TeamPlayer[]> {
       }) as TeamPlayer,
   );
 }
+export async function getReservePlayers(
+  sessionId: string,
+): Promise<ReservePlayer[]> {
+  const { data, error } = await db()
+    .from("reserve_players")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("created_at");
+  return unwrap(data as ReservePlayer[], error);
+}
+export async function getReserveTeamPlayers(
+  sessionId: string,
+): Promise<ReserveTeamPlayer[]> {
+  const { data, error } = await db()
+    .from("reserve_team_players")
+    .select("*,reserve_player:reserve_players(*)")
+    .eq("session_id", sessionId);
+  return unwrap(data as ReserveTeamPlayer[], error);
+}
+export async function registerReservePlayer(
+  sessionId: string,
+  name: string,
+  position: string | null,
+  ovr: number | null,
+  memberUserId: string | null,
+) {
+  const { data, error } = await db().rpc("register_reserve_player", {
+    p_session_id: sessionId,
+    p_name: name,
+    p_position: position,
+    p_ovr: ovr,
+    p_member_user_id: memberUserId,
+  });
+  return unwrap(data as string, error);
+}
+export async function createReserveTeam(
+  sessionId: string,
+  name: string,
+  color: string,
+  playerIds: string[],
+) {
+  const { data, error } = await db().rpc("create_reserve_team", {
+    p_session_id: sessionId,
+    p_name: name,
+    p_color: color,
+    p_player_ids: playerIds,
+  });
+  return unwrap(data as string, error);
+}
+export async function createReservePair(
+  sessionId: string,
+  first: string[],
+  second: string[],
+  startNumber: number,
+) {
+  const { data, error } = await db().rpc("create_reserve_pair", {
+    p_session_id: sessionId,
+    p_first_name: `Reserve ${startNumber}`,
+    p_first_color: "#14B8A6",
+    p_first_players: first,
+    p_second_name: `Reserve ${startNumber + 1}`,
+    p_second_color: "#3B82F6",
+    p_second_players: second,
+  });
+  return unwrap(data as string[], error);
+}
 export async function saveTeams(
   sessionId: string,
   assignments: { name: string; color: string; userIds: string[] }[],
@@ -296,14 +372,97 @@ export async function scheduleMatches(sessionId: string): Promise<void> {
   });
   if (error) throw error;
 }
+export async function createAdditionalMatch(input: {
+  sessionId: string;
+  type: Match["match_type"];
+  homeId: string;
+  awayId: string;
+  position: number;
+  refereeId: string;
+  acknowledgeMainDelay: boolean;
+}) {
+  const { data, error } = await db().rpc("create_additional_match", {
+    p_session_id: input.sessionId,
+    p_type: input.type,
+    p_home_team_id: input.homeId,
+    p_away_team_id: input.awayId,
+    p_position: input.position,
+    p_head_referee: input.refereeId,
+    p_acknowledge_main_delay: input.acknowledgeMainDelay,
+  });
+  return unwrap(data as string, error);
+}
 export async function getEvents(matchId: string): Promise<MatchEvent[]> {
   const { data, error } = await db()
     .from("match_events")
-    .select("*,profiles!match_events_player_id_fkey(id,full_name)")
+    .select(
+      "*,profiles!match_events_player_id_fkey(id,full_name),reserve_players!match_event_reserve_player_fkey(id,full_name)",
+    )
     .eq("match_id", matchId)
     .order("occurred_at");
   if (error) throw error;
-  return (data || []).map((r) => ({ ...r, profile: r.profiles }) as MatchEvent);
+  return (data || []).map(
+    (r) =>
+      ({
+        ...r,
+        profile: r.profiles,
+        reserve_player: r.reserve_players,
+      }) as MatchEvent,
+  );
+}
+export async function getMatchdayReport(sessionId: string) {
+  const { data, error } = await db()
+    .from("match_events")
+    .select(
+      "event_type,player_id,reserve_player_id,profiles!match_events_player_id_fkey(id,full_name),reserve_players!match_event_reserve_player_fkey(id,full_name),matches!inner(match_type,session_id)",
+    )
+    .eq("matches.session_id", sessionId)
+    .is("reversed_at", null);
+  if (error) throw error;
+  const rows = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      standard: ReturnType<typeof summarizeMatchEvents>["standard"];
+      reserve: ReturnType<typeof summarizeMatchEvents>["reserve"];
+      combined: ReturnType<typeof summarizeMatchEvents>["combined"];
+    }
+  >();
+  const grouped = new Map<
+    string,
+    { event_type: string; match_type: MatchType }[]
+  >();
+  for (const event of data || []) {
+    const id = event.player_id || event.reserve_player_id;
+    if (!id) continue;
+    const profile = event.profiles as unknown as { full_name: string } | null;
+    const walkIn = event.reserve_players as unknown as {
+      full_name: string;
+    } | null;
+    const joined = event.matches as unknown as { match_type: MatchType };
+    if (!rows.has(id))
+      rows.set(id, {
+        id,
+        name: profile?.full_name || walkIn?.full_name || id,
+        standard: { goals: 0, yellow: 0, red: 0, green: 0 },
+        reserve: { goals: 0, yellow: 0, red: 0, green: 0 },
+        combined: { goals: 0, yellow: 0, red: 0, green: 0 },
+      });
+    grouped.set(id, [
+      ...(grouped.get(id) || []),
+      { event_type: event.event_type, match_type: joined.match_type },
+    ]);
+  }
+  return [...rows.values()]
+    .map((row) => ({
+      ...row,
+      ...summarizeMatchEvents(grouped.get(row.id) || []),
+    }))
+    .sort(
+      (a, b) =>
+        b.combined.goals - a.combined.goals || a.name.localeCompare(b.name),
+    );
 }
 export async function setMatchState(
   matchId: string,
@@ -325,6 +484,21 @@ export async function addEvent(
     p_match_id: matchId,
     p_team_id: teamId,
     p_player_id: playerId,
+    p_type: eventType,
+    p_idempotency_key: crypto.randomUUID(),
+  });
+  if (error) throw error;
+}
+export async function addWalkInEvent(
+  matchId: string,
+  teamId: string,
+  reservePlayerId: string,
+  eventType: MatchEvent["event_type"],
+): Promise<void> {
+  const { error } = await db().rpc("record_walk_in_match_event", {
+    p_match_id: matchId,
+    p_team_id: teamId,
+    p_reserve_player_id: reservePlayerId,
     p_type: eventType,
     p_idempotency_key: crypto.randomUUID(),
   });

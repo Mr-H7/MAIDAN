@@ -13,6 +13,8 @@ import {
   getMatches,
   getPlayers,
   getTeams,
+  getTeamPlayers,
+  getReserveTeamPlayers,
   lockRoster,
   reopenRoster,
   rotateQr,
@@ -31,6 +33,7 @@ import { FridayGateCard } from "../components/FridayGateCard";
 import { DisciplineAdmin } from "../components/DisciplineAdmin";
 import { matchControlRequirements } from "../lib/fridayGate";
 import { FixtureOrder } from "../components/FixtureOrder";
+import { ReserveOperations } from "../components/ReserveOperations";
 import { Field } from "../components/ui/Field";
 import type { Booking, Maqraa } from "../lib/types";
 function defaultDates(zone: string) {
@@ -189,6 +192,18 @@ export function AdminPage() {
     queryFn: () => getTeams(active!.id),
     enabled: !!active,
   });
+  const mainAssignments = useQuery({
+    queryKey: ["teamPlayers", active?.id],
+    queryFn: () => getTeamPlayers(active!.id),
+    enabled: !!active,
+  });
+  const reserveAssignments = useQuery({
+    queryKey: ["reserveTeamPlayers", active?.id],
+    queryFn: () => getReserveTeamPlayers(active!.id),
+    enabled:
+      !!active &&
+      !!matches.data?.some((match) => match.match_type !== "main_main"),
+  });
   const create = useMutation({
     mutationFn: () =>
       createWeekly(
@@ -300,9 +315,11 @@ export function AdminPage() {
     hasSession: !!active,
     sessionStatus: active?.status || null,
     confirmedCount,
-    teamCount: teams.data?.length || 0,
+    teamCount: teams.data?.filter((team) => team.kind === "main").length || 0,
     publishedTeamCount:
-      teams.data?.filter((team) => team.status === "published").length || 0,
+      teams.data?.filter(
+        (team) => team.kind === "main" && team.status === "published",
+      ).length || 0,
     matchCount: matches.data?.length || 0,
   };
   const rosterText = (bookings.data || [])
@@ -595,7 +612,9 @@ export function AdminPage() {
         </div>
         <div className="actions" style={{ marginBottom: 12 }}>
           <ActionButton
-            disabled={!active || matches.data?.length !== 0 || fixtures.isPending}
+            disabled={
+              !active || matches.data?.length !== 0 || fixtures.isPending
+            }
             onClick={() => {
               if (!confirmFixtures) {
                 setConfirmFixtures(true);
@@ -634,66 +653,107 @@ export function AdminPage() {
           (!active ||
             (matches.isSuccess && teams.isSuccess && bookings.isSuccess)) &&
           (matches.data?.length || 0) === 0 && (
-          <FridayGateCard
-            input={fridayInput}
-            reopenPending={reopen.isPending}
-            onReopen={() => reopen.mutate()}
-          />
-        )}
+            <FridayGateCard
+              input={fridayInput}
+              reopenPending={reopen.isPending}
+              onReopen={() => reopen.mutate()}
+            />
+          )}
         {active && (
           <FixtureOrder sessionId={active.id} matches={matches.data || []} />
         )}
+        {active && teams.data && matches.data && players.data && (
+          <ReserveOperations
+            sessionId={active.id}
+            sessionStartsAt={active.starts_at}
+            sessionEndsAt={active.ends_at}
+            teams={teams.data}
+            matches={matches.data}
+            players={players.data}
+            bookings={bookings.data || []}
+            officialIds={officialIds}
+          />
+        )}
         <div className="list" style={{ marginTop: 12 }}>
-          {matches.data?.map((m) => (
-            <Card key={m.id}>
-              <div className="row">
-                <Link to={`/matches/${m.id}`}>
-                  <strong>
-                    {t("Match", "المباراة")} {m.order_no}: {m.home_team?.name}{" "}
-                    {t("vs", "ضد")} {m.away_team?.name}
-                  </strong>
-                </Link>
-                <span className="pill gray">
-                  {ar
-                    ? {
-                        scheduled: "مجدولة",
-                        live: "جارية",
-                        paused: "متوقفة",
-                        completed: "مكتملة",
-                      }[m.status]
-                    : m.status}
-                </span>
-              </div>
-              <div className="toolbar" style={{ marginTop: 12 }}>
-                {(["head", "assistant"] as const).map((role) => (
-                  <label className="field" key={role}>
+          {matches.data?.map((m) => {
+            const participantIds = new Set([
+              ...(mainAssignments.data || [])
+                .filter((p) =>
+                  [m.home_team_id, m.away_team_id].includes(p.team_id),
+                )
+                .map((p) => p.user_id),
+              ...(reserveAssignments.data || [])
+                .filter((p) =>
+                  [m.home_team_id, m.away_team_id].includes(p.team_id),
+                )
+                .map((p) => p.reserve_player?.member_user_id)
+                .filter((id): id is string => !!id),
+            ]);
+            return (
+              <Card key={m.id}>
+                <div className="row">
+                  <Link to={`/matches/${m.id}`}>
+                    <strong>
+                      {t("Match", "المباراة")} {m.order_no}: {m.home_team?.name}{" "}
+                      {t("vs", "ضد")} {m.away_team?.name}
+                    </strong>
+                  </Link>
+                  <span className="pill gray">
                     {ar
-                      ? role === "head"
-                        ? "الحكم الرئيسي"
-                        : "الحكم المساعد"
-                      : `${role} referee`}
-                    <select
-                      className="select"
-                      defaultValue=""
-                      onChange={(e) => {
-                        if (e.target.value)
-                          void assign(m.id, e.target.value, role);
-                      }}
-                    >
-                      <option value="">{t("Assign", "تعيين")}</option>
-                      {players.data
-                        ?.filter((p) => officialIds.has(p.id))
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.full_name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-            </Card>
-          ))}
+                      ? {
+                          scheduled: "مجدولة",
+                          live: "جارية",
+                          paused: "متوقفة",
+                          completed: "مكتملة",
+                        }[m.status]
+                      : m.status}
+                  </span>
+                  <span className="pill blue">
+                    {ar
+                      ? {
+                          main_main: "أساسي ضد أساسي",
+                          reserve_reserve: "احتياط ضد احتياط",
+                          reserve_main: "احتياط ضد أساسي",
+                        }[m.match_type]
+                      : m.match_type.replaceAll("_", " vs ")}{" "}
+                    · {m.duration_seconds / 60} {ar ? "دقائق" : "min"}
+                  </span>
+                </div>
+                <div className="toolbar" style={{ marginTop: 12 }}>
+                  {(["head", "assistant"] as const).map((role) => (
+                    <label className="field" key={role}>
+                      {ar
+                        ? role === "head"
+                          ? "الحكم الرئيسي"
+                          : "الحكم المساعد"
+                        : `${role} referee`}
+                      <select
+                        className="select"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value)
+                            void assign(m.id, e.target.value, role);
+                        }}
+                      >
+                        <option value="">{t("Assign", "تعيين")}</option>
+                        {players.data
+                          ?.filter(
+                            (p) =>
+                              officialIds.has(p.id) &&
+                              !participantIds.has(p.id),
+                          )
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.full_name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </section>
     </div>

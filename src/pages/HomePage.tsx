@@ -196,6 +196,7 @@ export function HomePage() {
         </div>
         <div className="grid-two">
           {teams.data
+            ?.filter((team) => team.kind === "main")
             ?.filter((x) => x.status === "published")
             .slice(0, 2)
             .map((team) => (
@@ -206,7 +207,9 @@ export function HomePage() {
                 </div>
               </Card>
             ))}
-          {!teams.data?.some((x) => x.status === "published") && (
+          {!teams.data?.some(
+            (x) => x.kind === "main" && x.status === "published",
+          ) && (
             <Card className="empty">
               {language === "ar"
                 ? "ستظهر الفرق بعد إغلاق قائمة اللاعبين."

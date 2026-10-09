@@ -55,14 +55,16 @@ export function TeamsPage() {
   const assignments = useMemo(
     () =>
       draft ||
-      teams.data?.map((t) => ({
-        name: t.name,
-        color: t.color,
-        userIds:
-          teamPlayers.data
-            ?.filter((p) => p.team_id === t.id)
-            .map((p) => p.user_id) || [],
-      })) ||
+      teams.data
+        ?.filter((t) => t.kind === "main")
+        .map((t) => ({
+          name: t.name,
+          color: t.color,
+          userIds:
+            teamPlayers.data
+              ?.filter((p) => p.team_id === t.id)
+              .map((p) => p.user_id) || [],
+        })) ||
       [],
     [draft, teams.data, teamPlayers.data],
   );
@@ -206,15 +208,17 @@ export function TeamsPage() {
                   variant="quiet"
                   disabled={
                     !!draft ||
-                    !teams.data?.length ||
+                    !teams.data?.some((team) => team.kind === "main") ||
                     published.isPending ||
-                    teams.data?.[0]?.status === "published"
+                    teams.data?.find((team) => team.kind === "main")?.status ===
+                      "published"
                   }
                   onClick={() => published.mutate()}
                 >
                   {ar ? "نشر الفرق" : "Publish teams"}
                 </ActionButton>
-                {teams.data?.[0]?.status === "published" && (
+                {teams.data?.find((team) => team.kind === "main")?.status ===
+                  "published" && (
                   <ActionButton
                     variant="quiet"
                     disabled={reopened.isPending}
@@ -239,10 +243,14 @@ export function TeamsPage() {
                 confirmedCount:
                   bookings.data?.filter((row) => row.status === "confirmed")
                     .length || 0,
-                teamCount: teams.data?.length || 0,
+                teamCount:
+                  teams.data?.filter((team) => team.kind === "main").length ||
+                  0,
                 publishedTeamCount:
-                  teams.data?.filter((team) => team.status === "published")
-                    .length || 0,
+                  teams.data?.filter(
+                    (team) =>
+                      team.kind === "main" && team.status === "published",
+                  ).length || 0,
                 matchCount: 0,
               }}
             />
@@ -265,12 +273,18 @@ export function TeamsPage() {
                   <p className="muted tiny">
                     {members.length} {ar ? "لاعبين" : "players"} ·{" "}
                     {ar
-                      ? teams.data?.[index]?.status === "published"
+                      ? teams.data?.filter((team) => team.kind === "main")[
+                          index
+                        ]?.status === "published"
                         ? "منشور"
-                        : teams.data?.[index]?.status === "draft"
+                        : teams.data?.filter((team) => team.kind === "main")[
+                              index
+                            ]?.status === "draft"
                           ? "مسودة"
                           : "مسودة غير محفوظة"
-                      : teams.data?.[index]?.status || "unsaved draft"}
+                      : teams.data?.filter((team) => team.kind === "main")[
+                          index
+                        ]?.status || "unsaved draft"}
                   </p>
                   <div className="list">
                     {members.map((p) => (

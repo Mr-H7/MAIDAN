@@ -198,23 +198,56 @@ export function ProfilePage() {
           </p>
         )}
         {stats.data && (
-          <div className="metric-grid">
-            {[
-              [ar ? "الأهداف" : "Goals", stats.data.goals],
-              [ar ? "البطاقات الصفراء" : "Yellow cards", stats.data.yellow],
-              [ar ? "البطاقات الحمراء" : "Red cards", stats.data.red],
-              [ar ? "البطاقات الخضراء" : "Green cards", stats.data.green],
-              [
-                ar ? "تقييم المجتمع" : "Community OVR",
-                stats.data.communityOvr ?? "—",
-              ],
-            ].map(([label, value]) => (
-              <div className="metric" key={label}>
-                <div className="stat">{value}</div>
-                <div className="stat-label">{label}</div>
+          <>
+            <p className="tiny muted">
+              {ar
+                ? "إجمالي يوم المباراة (الأساسي + الاحتياط)"
+                : "Combined matchday totals (standard + reserve)"}
+            </p>
+            <div className="metric-grid">
+              {[
+                [ar ? "الأهداف" : "Goals", stats.data.goals],
+                [ar ? "البطاقات الصفراء" : "Yellow cards", stats.data.yellow],
+                [ar ? "البطاقات الحمراء" : "Red cards", stats.data.red],
+                [ar ? "البطاقات الخضراء" : "Green cards", stats.data.green],
+                [
+                  ar ? "تقييم المجتمع" : "Community OVR",
+                  stats.data.communityOvr ?? "—",
+                ],
+              ].map(([label, value]) => (
+                <div className="metric" key={label}>
+                  <div className="stat">{value}</div>
+                  <div className="stat-label">{label}</div>
+                </div>
+              ))}
+            </div>
+            {stats.data.standard && stats.data.reserve && (
+              <div className="grid-two" style={{ marginTop: 12 }}>
+                {(
+                  [
+                    [
+                      ar ? "مباريات أساسية" : "Standard matches",
+                      stats.data.standard,
+                    ],
+                    [
+                      ar ? "مباريات احتياط" : "Reserve matches",
+                      stats.data.reserve,
+                    ],
+                  ] as const
+                ).map(([label, bucket]) => (
+                  <div className="card" key={label}>
+                    <strong>{label}</strong>
+                    <p className="tiny muted">
+                      {ar ? "أهداف" : "Goals"}: {bucket.goals} ·{" "}
+                      {ar ? "صفراء" : "Yellow"}: {bucket.yellow} ·{" "}
+                      {ar ? "حمراء" : "Red"}: {bucket.red} ·{" "}
+                      {ar ? "خضراء" : "Green"}: {bucket.green}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </Card>
       <Card>

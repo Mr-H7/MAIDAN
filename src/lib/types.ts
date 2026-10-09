@@ -64,6 +64,25 @@ export type Team = {
   name: string;
   color: string;
   status: "draft" | "published";
+  kind: "main" | "reserve";
+};
+export type ReservePlayer = {
+  id: string;
+  group_id: string;
+  session_id: string;
+  full_name: string;
+  preferred_position: string | null;
+  estimated_ovr: number | null;
+  member_user_id: string | null;
+  created_at: string;
+};
+export type ReserveTeamPlayer = {
+  id: string;
+  group_id: string;
+  session_id: string;
+  team_id: string;
+  reserve_player_id: string;
+  reserve_player?: ReservePlayer;
 };
 export type TeamPlayer = {
   id: string;
@@ -82,6 +101,7 @@ export type Match = {
   order_no: number;
   status: "scheduled" | "live" | "paused" | "completed";
   duration_seconds: number;
+  match_type: "main_main" | "reserve_reserve" | "reserve_main";
   started_at: string | null;
   elapsed_seconds: number;
   home_team?: Team;
@@ -92,11 +112,13 @@ export type MatchEvent = {
   group_id: string;
   match_id: string;
   team_id: string;
-  player_id: string;
+  player_id: string | null;
+  reserve_player_id: string | null;
   event_type: "goal" | "yellow" | "red" | "green";
   occurred_at: string;
   reversed_at: string | null;
   profile?: Profile;
+  reserve_player?: Pick<ReservePlayer, "id" | "full_name">;
 };
 export type Rating = {
   id: string;
