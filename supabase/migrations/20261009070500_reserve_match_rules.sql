@@ -186,8 +186,9 @@ begin
   if v_session.status='completed' then raise exception 'Session is completed'; end if;
   if (select count(*) from public.matches where session_id=p_session_id and match_type='main_main')<6
     then raise exception 'Schedule the original main fixtures first'; end if;
-  if (select coalesce(sum(duration_seconds),0) from public.matches where session_id=p_session_id) +
-     case when p_type='main_main' then 600 else 480 end > extract(epoch from (v_session.ends_at-v_session.starts_at))
+  if ((select coalesce(sum(duration_seconds),0) from public.matches where session_id=p_session_id) +
+     (case when p_type='main_main' then 600 else 480 end)) >
+     extract(epoch from (v_session.ends_at-v_session.starts_at))
     then raise exception 'Not enough session time for the full fixture duration'; end if;
   if p_type is null or p_type not in ('main_main','reserve_reserve','reserve_main') or p_home_team_id=p_away_team_id
     then raise exception 'Invalid match type or sides'; end if;
