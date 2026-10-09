@@ -6,7 +6,7 @@ insert into auth.users(id,email,raw_user_meta_data)
 select ('00000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,
        'reserve-' || n || '@example.invalid',
        jsonb_build_object('full_name','Synthetic ' || n)
-from generate_series(1,23) n;
+from generate_series(1,24) n;
 
 insert into public.groups(id,name,created_by)
 values ('10000000-0000-4000-8000-000000000001','Isolated A','00000000-0000-4000-8000-000000000001'),
@@ -190,28 +190,51 @@ begin
     perform public.set_match_state((select id from public.matches where match_type='reserve_reserve' limit 1),'live');
     raise exception 'FAIL: player controlled match';
   exception when others then if sqlerrm <> 'Assigned official required' then raise; end if; end;
+  begin
+    perform public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000024',false);
+    raise exception 'FAIL: player deactivated a member';
+  exception when others then if sqlerrm <> 'Admin permission required' then raise; end if; end;
   raise notice 'PASS: player mutation and cross-group denials';
 end $$;
 
--- Deactivation is a privileged test fixture change because no member-removal RPC exists.
-reset role;
-update public.group_members set status='inactive'
-where group_id='10000000-0000-4000-8000-000000000001'
-  and user_id='00000000-0000-4000-8000-000000000002';
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
+-- Member lifecycle uses an authorized RPC, never direct client UPDATE.
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
+do $$ begin
+  begin
+    perform public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000002',false);
+    raise exception 'FAIL: confirmed player deactivated';
+  exception when others then if sqlerrm <> 'Active matchday assignment must be resolved first' then raise; end if; end;
+  begin
+    perform public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000001',false);
+    raise exception 'FAIL: sole admin self-deactivated';
+  exception when others then if sqlerrm <> 'Cannot deactivate your own admin membership' then raise; end if; end;
+  begin
+    perform public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000023',false);
+    raise exception 'FAIL: active admin deactivated without role transfer';
+  exception when others then if sqlerrm <> 'Transfer the admin role before deactivation' then raise; end if; end;
+  perform public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000024',false);
+  if not exists(select 1 from public.profiles where id='00000000-0000-4000-8000-000000000024')
+    then raise exception 'FAIL: Admin cannot identify inactive member'; end if;
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000024',true);
 do $$ begin
   if exists(select 1 from public.matches where session_id='30000000-0000-4000-8000-000000000001')
     then raise exception 'FAIL: inactive member retained group access'; end if;
   raise notice 'PASS: inactive member loses group read access';
 end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
-select public.add_member_by_email('10000000-0000-4000-8000-000000000001','reserve-2@example.invalid');
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
+select public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000024',true);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000024',true);
 do $$ begin
   if not exists(select 1 from public.matches where session_id='30000000-0000-4000-8000-000000000001')
     then raise exception 'FAIL: reactivated member cannot read'; end if;
-  raise notice 'PASS: existing account reactivation restores scoped read access';
+  raise notice 'PASS: authorized member reactivation restores scoped read access';
 end $$;
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000022',true);
@@ -220,8 +243,15 @@ do $$ begin
     perform public.register_reserve_player('30000000-0000-4000-8000-000000000001','Cross Group',null,null,null);
     raise exception 'FAIL: Group B admin changed Group A';
   exception when others then if sqlerrm <> 'Admin permission required' then raise; end if; end;
+  begin
+    perform public.set_group_member_active('10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000024',false);
+    raise exception 'FAIL: Group B admin changed Group A membership';
+  exception when others then if sqlerrm <> 'Admin permission required' then raise; end if; end;
   if exists(select 1 from public.reserve_players where group_id='10000000-0000-4000-8000-000000000001')
     then raise exception 'FAIL: Group B admin read reserve identities'; end if;
+  if exists(select 1 from public.profiles where id='00000000-0000-4000-8000-000000000024')
+    then raise exception 'FAIL: Group B admin read Group A profile'; end if;
   raise notice 'PASS: Group B admin denied Group A reserve records and writes';
 end $$;
 

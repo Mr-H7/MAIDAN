@@ -52,6 +52,44 @@ create policy reserve_team_players_read on public.reserve_team_players for selec
 revoke all on public.reserve_players,public.reserve_team_players from anon;
 grant select on public.reserve_players,public.reserve_team_players to authenticated;
 
+-- Deactivation retains attendance, team assignments, events, and rating history.
+-- An active matchday participant cannot be silently removed from a future roster.
+create function public.set_group_member_active(p_group_id uuid,p_user_id uuid,p_active boolean)
+returns void language plpgsql security definer set search_path='' as $$
+declare v_member public.group_members;
+begin
+  if p_active is null or not private.is_admin(p_group_id) then raise exception 'Admin permission required'; end if;
+  select * into v_member from public.group_members
+    where group_id=p_group_id and user_id=p_user_id for update;
+  if v_member.id is null then raise exception 'Member not found in this group'; end if;
+  if not p_active then
+    if p_user_id=auth.uid() then raise exception 'Cannot deactivate your own admin membership'; end if;
+    if exists(select 1 from public.group_roles where group_id=p_group_id and user_id=p_user_id
+      and role in ('group_admin','super_admin')) then
+      raise exception 'Transfer the admin role before deactivation'; end if;
+    if exists(select 1 from public.football_attendance a
+      join public.football_sessions s on s.id=a.session_id
+      where a.group_id=p_group_id and a.user_id=p_user_id and a.status='confirmed'
+        and s.status<>'completed' and s.ends_at>now()) or
+      exists(select 1 from public.reserve_players r
+        join public.reserve_team_players rp on rp.reserve_player_id=r.id
+        join public.football_sessions s on s.id=r.session_id
+        where r.group_id=p_group_id and r.member_user_id=p_user_id
+          and s.status<>'completed' and s.ends_at>now()) then
+      raise exception 'Active matchday assignment must be resolved first'; end if;
+  end if;
+  update public.group_members set status=case when p_active then 'active' else 'inactive' end
+    where id=v_member.id;
+  insert into public.audit_logs(group_id,actor_id,action,entity_type,entity_id)
+    values(p_group_id,auth.uid(),case when p_active then 'member_reactivated' else 'member_deactivated' end,
+      'profile',p_user_id);
+end $$;
+revoke all on function public.set_group_member_active(uuid,uuid,boolean) from public,anon;
+grant execute on function public.set_group_member_active(uuid,uuid,boolean) to authenticated;
+create policy profiles_group_admin_member_read on public.profiles for select to authenticated
+  using (exists(select 1 from public.group_members gm
+    where gm.user_id=profiles.id and private.is_admin(gm.group_id)));
+
 -- Existing event/discipline rows retain their authenticated player IDs.
 alter table public.match_events alter column player_id drop not null;
 alter table public.match_events add column reserve_player_id uuid;

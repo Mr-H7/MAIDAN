@@ -144,6 +144,7 @@ export function AdminPage() {
   const [notice, setNotice] = useState("");
   const [confirmLock, setConfirmLock] = useState(false);
   const [confirmFixtures, setConfirmFixtures] = useState(false);
+  const [confirmMemberId, setConfirmMemberId] = useState<string | null>(null);
   const sessions = useQuery({
     queryKey: ["football", groupId],
     queryFn: () => getFootball(groupId!),
@@ -157,6 +158,25 @@ export function AdminPage() {
   const players = useQuery({
     queryKey: ["players", groupId],
     queryFn: () => getPlayers(groupId!),
+    enabled: !!groupId,
+  });
+  const members = useQuery({
+    queryKey: ["adminMembers", groupId],
+    queryFn: async () => {
+      const { data, error } = await db()
+        .from("group_members")
+        .select("user_id,status,profiles(full_name)")
+        .eq("group_id", groupId!)
+        .order("joined_at");
+      if (error) throw error;
+      return (data || []).map((row) => ({
+        userId: row.user_id,
+        status: row.status,
+        name:
+          (row.profiles as unknown as { full_name: string } | null)
+            ?.full_name || "Player",
+      }));
+    },
     enabled: !!groupId,
   });
   const officialRoles = useQuery({
@@ -275,8 +295,36 @@ export function AdminPage() {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["players", groupId] });
+      client.invalidateQueries({ queryKey: ["adminMembers", groupId] });
       setNotice(t("Player added.", "أُضيف اللاعب."));
       setEmail("");
+    },
+    onError: (e) => setNotice(e.message),
+  });
+  const changeMember = useMutation({
+    mutationFn: async ({
+      userId,
+      active,
+    }: {
+      userId: string;
+      active: boolean;
+    }) => {
+      const { error } = await db().rpc("set_group_member_active", {
+        p_group_id: groupId,
+        p_user_id: userId,
+        p_active: active,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      setConfirmMemberId(null);
+      client.invalidateQueries({ queryKey: ["players", groupId] });
+      client.invalidateQueries({ queryKey: ["adminMembers", groupId] });
+      setNotice(
+        variables.active
+          ? t("Member reactivated.", "أُعيد تفعيل العضو.")
+          : t("Member deactivated.", "عُطّل العضو."),
+      );
     },
     onError: (e) => setNotice(e.message),
   });
@@ -433,6 +481,44 @@ export function AdminPage() {
                 "يجب أن ينشئ اللاعب حساب ميدان أولًا. لا يضيف الأعضاء إلا مشرف المجموعة.",
               )}
             </p>
+            {members.data?.map((member) => (
+              <div className="row" key={member.userId}>
+                <span>
+                  {member.name} ·{" "}
+                  {member.status === "active"
+                    ? t("Active", "نشط")
+                    : t("Inactive", "غير نشط")}
+                </span>
+                <ActionButton
+                  variant="quiet"
+                  disabled={
+                    changeMember.isPending ||
+                    member.userId === membership?.user_id
+                  }
+                  onClick={() => {
+                    if (member.status === "inactive") {
+                      changeMember.mutate({
+                        userId: member.userId,
+                        active: true,
+                      });
+                    } else if (confirmMemberId === member.userId) {
+                      changeMember.mutate({
+                        userId: member.userId,
+                        active: false,
+                      });
+                    } else {
+                      setConfirmMemberId(member.userId);
+                    }
+                  }}
+                >
+                  {member.status === "inactive"
+                    ? t("Reactivate", "إعادة التفعيل")
+                    : confirmMemberId === member.userId
+                      ? t("Confirm deactivation", "تأكيد التعطيل")
+                      : t("Deactivate", "تعطيل")}
+                </ActionButton>
+              </div>
+            ))}
           </div>
         </Card>
       </div>
